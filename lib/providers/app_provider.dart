@@ -29,6 +29,12 @@ class AppProvider extends ChangeNotifier {
   DateTime? _lastSyncAt;
   String? _lastSyncError;
 
+  /// Channels that resolved fine but ended up with no videos at all. Worth
+  /// surfacing: this is exactly how the broken youtube_explode channel API
+  /// presented itself — icons in the app, an empty feed, and nothing in the UI
+  /// saying anything was wrong.
+  List<String> _emptyChannels = [];
+
   List<VideoItem> get allVideos => _allVideos;
   List<VideoItem> get regularVideos => _regularVideos;
   List<VideoItem> get shorts => _shorts;
@@ -43,6 +49,7 @@ class AppProvider extends ChangeNotifier {
   String get syncStatus => _syncStatus;
   DateTime? get lastSyncAt => _lastSyncAt;
   String? get lastSyncError => _lastSyncError;
+  List<String> get emptyChannels => List.unmodifiable(_emptyChannels);
   bool get isRemoteConfigured => !_channelsUrl.contains('OWNER/REPO');
 
   /// Local-only startup: reads the cached database so the app opens instantly
@@ -118,6 +125,7 @@ class AppProvider extends ChangeNotifier {
   /// single row. Otherwise a dead Wi-Fi connection would empty the child's app.
   Future<void> syncFromRemote() async {
     if (_isSyncing) return;
+    _emptyChannels = [];
     _setSyncing(true, 'Проверяем список каналов…');
 
     RemoteChannelList? remote;
@@ -249,6 +257,10 @@ class AppProvider extends ChangeNotifier {
     await _db.updateChannel(channel.copyWith(lastSyncedAt: DateTime.now()));
     developer.log('${channel.name}: $inserted new videos');
 
+    if (await _db.countVideosByChannel(channel.youtubeChannelId) == 0) {
+      _emptyChannels.add(channel.name);
+    }
+
     // Surface this channel's videos right away rather than after the whole
     // batch — with a dozen-plus channels the first run takes minutes.
     if (inserted > 0) await _reloadLists();
@@ -266,6 +278,7 @@ class AppProvider extends ChangeNotifier {
   /// Refreshes uploads for every allowed channel without re-reading the file.
   Future<void> syncAllChannels() async {
     if (_isSyncing) return;
+    _emptyChannels = [];
     _setSyncing(true, '');
     for (final channel in await _db.getAllowedChannels()) {
       await _syncChannel(channel, incremental: true);

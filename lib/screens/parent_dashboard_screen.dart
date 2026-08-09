@@ -217,6 +217,13 @@ class ParentDashboardScreen extends StatelessWidget {
             'Последняя удачная загрузка: ${_formatSyncTime(provider.lastSyncAt)}',
             style: const TextStyle(color: AppColors.ytGrey, fontSize: 12),
           ),
+          if (provider.emptyChannels.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Без видео: ${provider.emptyChannels.join(', ')}',
+              style: const TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             provider.channelsUrl,

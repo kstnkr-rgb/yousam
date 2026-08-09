@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Resolved on CI: the committed lock pinned a youtube_explode_dart version
+# whose channel API had stopped working, and there is no Flutter SDK on the
+# machine this project is maintained from to regenerate it.
+pubspec.lock

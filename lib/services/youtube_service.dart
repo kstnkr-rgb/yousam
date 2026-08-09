@@ -179,11 +179,45 @@ class YouTubeService {
     int scanLimit = 0,
     void Function(int fetched)? onProgress,
   }) async {
+    var videos = await _collectUploads(
+      yt.channels.getUploads(ChannelId(youtubeChannelId)),
+      limit: limit,
+      stopAtIds: stopAtIds,
+      scanLimit: scanLimit,
+      onProgress: onProgress,
+    );
+
+    if (videos.isEmpty && stopAtIds.isEmpty) {
+      // getUploads is the first thing to break when YouTube reshuffles its
+      // internal API, and it fails by returning nothing rather than throwing.
+      // Every channel also has an "uploads" playlist whose id is the channel
+      // id with UC swapped for UU; that path is served by different code.
+      final uploadsPlaylist = 'UU${youtubeChannelId.substring(2)}';
+      developer.log('getUploads empty, falling back to playlist $uploadsPlaylist');
+      videos = await _collectUploads(
+        yt.playlists.getVideos(PlaylistId(uploadsPlaylist)),
+        limit: limit,
+        stopAtIds: stopAtIds,
+        scanLimit: scanLimit,
+        onProgress: onProgress,
+      );
+    }
+
+    developer.log('Fetched ${videos.length} uploads for $youtubeChannelId');
+    return videos;
+  }
+
+  Future<List<VideoItem>> _collectUploads(
+    Stream<Video> source, {
+    required int limit,
+    required Set<String> stopAtIds,
+    required int scanLimit,
+    void Function(int fetched)? onProgress,
+  }) async {
     final videos = <VideoItem>[];
     try {
       var scanned = 0;
-      await for (final video
-          in yt.channels.getUploads(ChannelId(youtubeChannelId))) {
+      await for (final video in source) {
         scanned++;
         if (stopAtIds.contains(video.id.value)) {
           developer.log('Reached known video ${video.id.value}, stopping scan');
@@ -211,7 +245,6 @@ class YouTubeService {
         if (scanLimit > 0 && scanned >= scanLimit) break;
       }
       onProgress?.call(videos.length);
-      developer.log('Fetched ${videos.length} uploads for $youtubeChannelId');
     } catch (e, stackTrace) {
       developer.log('Error fetching channel uploads: $e',
           error: e, stackTrace: stackTrace);

@@ -14,7 +14,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.2
   youtube_player_flutter: ^9.1.1
-  youtube_explode_dart: ^2.3.8
+  # 3.1.0 carries "Fix: channel, playlist, videos apis" — the 2.x line's
+  # channel-uploads scraping stopped returning anything against current
+  # YouTube, which is why channels resolved but no videos ever appeared.
+  youtube_explode_dart: ^3.1.0
   shared_preferences: ^2.3.3
   provider: ^6.1.2
   cached_network_image: ^3.4.1
