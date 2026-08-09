@@ -161,24 +161,21 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> _reconcile(List<String> entries) async {
     final stored = await _db.getAllChannels();
-
-    // 1. Channels that came from the file and are no longer in it.
-    for (final channel in stored.where((c) => c.isRemote)) {
-      if (entries.contains(channel.sourceRef)) continue;
-      developer.log('Removing channel dropped from channels.json: ${channel.name}');
-      await _db.deleteVideosByChannel(channel.youtubeChannelId);
-      await _db.deleteChannel(channel.id);
-    }
-
     final byRef = {
       for (final c in stored.where((c) => c.isRemote)) c.sourceRef: c
     };
 
-    // 2. Everything listed in the file.
+    // 1. Everything listed in the file. Additions run before removals on
+    // purpose: adopting a hand-added channel stamps it with a sourceRef, so
+    // the sweep below does not delete and immediately re-download it.
     for (final entry in entries) {
       final known = byRef[entry];
       if (known != null) {
-        await _syncChannel(known, incremental: true);
+        // A blocked channel stays blocked across syncs, so fetching its
+        // uploads would only download videos the visibility rule hides.
+        if (!known.isBlocked) {
+          await _syncChannel(known, incremental: true);
+        }
         continue;
       }
 
@@ -201,6 +198,17 @@ class AppProvider extends ChangeNotifier {
 
       await _db.insertChannel(channel);
       await _syncChannel(channel, incremental: existing != null);
+    }
+
+    // 2. Sweep everything the file does not account for. This covers channels
+    // dropped from channels.json and channels added by hand on the device —
+    // the file is the single source of truth, and the dashboard says as much
+    // when it offers a temporary add.
+    for (final channel in await _db.getAllChannels()) {
+      if (entries.contains(channel.sourceRef)) continue;
+      developer.log('Removing channel not listed in channels.json: ${channel.name}');
+      await _db.deleteVideosByChannel(channel.youtubeChannelId);
+      await _db.deleteChannel(channel.id);
     }
   }
 
