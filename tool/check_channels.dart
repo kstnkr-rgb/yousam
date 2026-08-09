@@ -98,6 +98,28 @@ Future<Channel?> _resolve(YoutubeExplode yt, String entry) async {
       return await yt.channels.getByUsername(legacy);
     } catch (_) {}
   }
+
+  // Last resort, mirroring the app: read the canonical id off the page.
+  final url = entry.startsWith('@')
+      ? 'https://www.youtube.com/$entry'
+      : (entry.contains('youtube.com') ? entry : null);
+  if (url != null) {
+    try {
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse(url));
+      request.headers.set('User-Agent',
+          'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36');
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      client.close();
+      final id = RegExp(r'"(?:externalId|channelId)":"(UC[\w-]{22})"')
+          .firstMatch(body)
+          ?.group(1);
+      if (id != null) return await yt.channels.get(ChannelId(id));
+    } catch (e) {
+      stderr.writeln('  резолв по странице не удался: $e');
+    }
+  }
   return null;
 }
 

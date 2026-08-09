@@ -113,7 +113,53 @@ class YouTubeService {
       }
     }
 
-    return null;
+    // 4. Read the id off the channel page itself.
+    return _resolveViaPage(cleaned);
+  }
+
+  /// Last resort: fetch the channel page and pull its canonical UC id out of
+  /// the HTML.
+  ///
+  /// Needed because getByHandle does not cope with non-ASCII handles — a
+  /// Cyrillic @handle never resolves through the library, however it is
+  /// encoded.
+  Future<Channel?> _resolveViaPage(String input) async {
+    final url = input.startsWith('@')
+        ? 'https://www.youtube.com/$input'
+        : (input.contains('youtube.com') ? input : null);
+    if (url == null) return null;
+
+    try {
+      final response = await http.get(Uri.parse(url), headers: {
+        // Without a browser UA YouTube tends to answer with a consent
+        // interstitial that carries no channel id.
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36',
+        'Accept-Language': 'ru,en;q=0.9',
+      }).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        developer.log('Channel page $url: HTTP ${response.statusCode}');
+        return null;
+      }
+
+      final body = utf8.decode(response.bodyBytes);
+      final id = (RegExp(r'"(?:externalId|channelId)":"(UC[\w-]{22})"')
+                  .firstMatch(body) ??
+              RegExp(r'youtube\.com/channel/(UC[\w-]{22})').firstMatch(body))
+          ?.group(1);
+
+      if (id == null) {
+        developer.log('No channel id found on $url');
+        return null;
+      }
+
+      developer.log('Resolved $url to $id via page');
+      return await yt.channels.get(ChannelId(id));
+    } catch (e) {
+      developer.log('Page resolution failed for $url: $e');
+      return null;
+    }
   }
 
   Future<VideoItem?> getVideoInfo(String videoUrl) async {
