@@ -39,13 +39,18 @@ Future<void> main(List<String> args) async {
       continue;
     }
 
-    final count = await _countUploads(yt, channel.id.value);
-    if (count == 0) {
-      empty++;
-      print('БЕЗ ВИДЕО   ${channel.title}  (${channel.id})  <- $entry');
-    } else {
+    final scraped = await _countUploads(yt, channel.id.value);
+    final rss = scraped > 0 ? 0 : await _countRss(channel.id.value);
+
+    if (scraped > 0) {
       ok++;
-      print('ok $count+   ${channel.title}  (${channel.id})');
+      print('ok $scraped+ (скрейпинг)   ${channel.title}  (${channel.id})');
+    } else if (rss > 0) {
+      ok++;
+      print('ok $rss (RSS)              ${channel.title}  (${channel.id})');
+    } else {
+      empty++;
+      print('БЕЗ ВИДЕО                  ${channel.title}  (${channel.id})  <- $entry');
     }
   }
 
@@ -104,6 +109,27 @@ Future<int> _countUploads(YoutubeExplode yt, String channelId) async {
         yt.playlists.getVideos(PlaylistId('UU${channelId.substring(2)}')));
   }
   return count;
+}
+
+/// Counts entries in the channel's Atom feed — the app's last-resort source.
+Future<int> _countRss(String channelId) async {
+  final uri = Uri.parse(
+      'https://www.youtube.com/feeds/videos.xml?channel_id=$channelId');
+  try {
+    final client = HttpClient();
+    final request = await client.getUrl(uri);
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
+    client.close();
+    if (response.statusCode != 200) {
+      stderr.writeln('  RSS вернул HTTP ${response.statusCode}');
+      return 0;
+    }
+    return '<entry>'.allMatches(body).length;
+  } catch (e) {
+    stderr.writeln('  RSS недоступен: $e');
+    return 0;
+  }
 }
 
 Future<int> _take(Stream<Video> source) async {

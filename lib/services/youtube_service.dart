@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
+
+import 'package:http/http.dart' as http;
+import 'package:xml/xml.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/video_item.dart';
 import '../models/channel_item.dart';
@@ -187,13 +191,13 @@ class YouTubeService {
       onProgress: onProgress,
     );
 
-    if (videos.isEmpty && stopAtIds.isEmpty) {
-      // getUploads is the first thing to break when YouTube reshuffles its
-      // internal API, and it fails by returning nothing rather than throwing.
-      // Every channel also has an "uploads" playlist whose id is the channel
-      // id with UC swapped for UU; that path is served by different code.
+    if (videos.isEmpty) {
+      // Both scraped paths currently return nothing: YouTube changed its
+      // response layout and youtube_explode's parser does not recognise it,
+      // failing silently with an empty stream rather than an exception
+      // (upstream issues #380, #381, #383). The Atom feed is a plain public
+      // XML endpoint, unrelated to that parsing, so it keeps working.
       final uploadsPlaylist = 'UU${youtubeChannelId.substring(2)}';
-      developer.log('getUploads empty, falling back to playlist $uploadsPlaylist');
       videos = await _collectUploads(
         yt.playlists.getVideos(PlaylistId(uploadsPlaylist)),
         limit: limit,
@@ -201,10 +205,89 @@ class YouTubeService {
         scanLimit: scanLimit,
         onProgress: onProgress,
       );
+
+      if (videos.isEmpty) {
+        developer.log('Scraping returned nothing, falling back to RSS');
+        videos = await getUploadsViaRss(youtubeChannelId, stopAtIds: stopAtIds);
+        onProgress?.call(videos.length);
+      }
     }
 
     developer.log('Fetched ${videos.length} uploads for $youtubeChannelId');
     return videos;
+  }
+
+  /// The channel's Atom feed: the 15 most recent uploads.
+  ///
+  /// Shallower than scraping and carries no duration, so videos from here are
+  /// all treated as regular ones — Shorts cannot be told apart without it.
+  /// The trade is deliberate: a feed of the newest 15 per channel beats an
+  /// empty app.
+  Future<List<VideoItem>> getUploadsViaRss(
+    String youtubeChannelId, {
+    Set<String> stopAtIds = const {},
+  }) async {
+    final uri = Uri.parse(
+        'https://www.youtube.com/feeds/videos.xml?channel_id=$youtubeChannelId');
+    final videos = <VideoItem>[];
+
+    try {
+      final response = await http.get(uri).timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        developer.log('RSS $youtubeChannelId: HTTP ${response.statusCode}');
+        return videos;
+      }
+
+      final feed = XmlDocument.parse(utf8.decode(response.bodyBytes));
+      final author = _firstText(feed.rootElement, 'name');
+
+      for (final entry in feed.findAllElements('entry')) {
+        final videoId = _firstText(entry, 'videoId');
+        if (videoId.isEmpty || stopAtIds.contains(videoId)) continue;
+
+        final entryAuthor = _firstText(entry, 'name');
+        final entryChannel = _firstText(entry, 'channelId');
+        final thumbnail = _firstAttribute(entry, 'thumbnail', 'url');
+
+        videos.add(VideoItem(
+          id: _uuid.v4(),
+          youtubeVideoId: videoId,
+          title: _firstText(entry, 'title'),
+          channelName: entryAuthor.isEmpty ? author : entryAuthor,
+          channelId: entryChannel.isEmpty ? youtubeChannelId : entryChannel,
+          thumbnailUrl: thumbnail.isEmpty
+              ? 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg'
+              : thumbnail,
+          viewCount: _formatViewCount(
+              int.tryParse(_firstAttribute(entry, 'statistics', 'views')) ?? 0),
+          publishedAt: DateTime.tryParse(_firstText(entry, 'published')),
+        ));
+      }
+      developer.log('RSS $youtubeChannelId: ${videos.length} videos');
+    } catch (e, stackTrace) {
+      developer.log('RSS failed for $youtubeChannelId: $e',
+          error: e, stackTrace: stackTrace);
+    }
+    return videos;
+  }
+
+  /// Namespace-agnostic lookup: the feed mixes the Atom, `yt:` and `media:`
+  /// namespaces, and matching on qualified names would break if YouTube ever
+  /// changed a prefix.
+  String _firstText(XmlElement parent, String localName) {
+    for (final element in parent.descendantElements) {
+      if (element.localName == localName) return element.innerText.trim();
+    }
+    return '';
+  }
+
+  String _firstAttribute(XmlElement parent, String localName, String attribute) {
+    for (final element in parent.descendantElements) {
+      if (element.localName == localName) {
+        return element.getAttribute(attribute) ?? '';
+      }
+    }
+    return '';
   }
 
   Future<List<VideoItem>> _collectUploads(

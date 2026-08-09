@@ -13,6 +13,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.2.2
+  # Parses the channel Atom feed used as the fallback video source.
+  xml: ^6.5.0
   youtube_player_flutter: ^9.1.1
   # 3.1.0 carries "Fix: channel, playlist, videos apis" — the 2.x line's
   # channel-uploads scraping stopped returning anything against current
