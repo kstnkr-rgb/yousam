@@ -15,7 +15,7 @@ class ParentDashboardScreen extends StatelessWidget {
       backgroundColor: AppColors.ytDarkBg,
       appBar: AppBar(
         backgroundColor: AppColors.ytDarkBg,
-        title: const Text('Parent Dashboard',
+        title: const Text('Родительский режим',
             style: TextStyle(color: AppColors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
@@ -38,11 +38,14 @@ class ParentDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildRemoteStatus(context, provider),
+                const SizedBox(height: 20),
+
                 // Stats
                 Row(
                   children: [
                     _buildStatCard(
-                      'Videos',
+                      'Видео',
                       '${provider.allVideos.length}',
                       Icons.play_circle_outline,
                       AppColors.ytRed,
@@ -66,7 +69,7 @@ class ParentDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     _buildStatCard(
-                      'Channels',
+                      'Каналы',
                       '${provider.allowedChannels.length}',
                       Icons.people_outline,
                       Colors.blue,
@@ -82,7 +85,7 @@ class ParentDashboardScreen extends StatelessWidget {
 
                 // Quick actions
                 const Text(
-                  'Quick Actions',
+                  'Действия',
                   style: TextStyle(
                     color: AppColors.white,
                     fontSize: 18,
@@ -94,15 +97,15 @@ class ParentDashboardScreen extends StatelessWidget {
                 _buildActionTile(
                   context,
                   Icons.add_circle_outline,
-                  'Add Video by URL',
-                  'Paste a YouTube video URL to add it',
+                  'Добавить видео по ссылке',
+                  'Одно видео, независимо от списка каналов',
                   () => _showAddVideoDialog(context),
                 ),
                 _buildActionTile(
                   context,
                   Icons.search,
-                  'Search & Add Videos',
-                  'Search YouTube and approve videos',
+                  'Найти видео на YouTube',
+                  'Поиск по всему YouTube и одобрение вручную',
                   () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -112,15 +115,16 @@ class ParentDashboardScreen extends StatelessWidget {
                 _buildActionTile(
                   context,
                   Icons.playlist_add,
-                  'Add Channel',
-                  'Add all videos from a YouTube channel',
+                  'Добавить канал временно',
+                  'До следующего запуска — постоянные каналы вписывайте '
+                      'в channels.json',
                   () => _showAddChannelDialog(context),
                 ),
                 _buildActionTile(
                   context,
                   Icons.video_library,
-                  'Manage Videos',
-                  'View and remove approved videos',
+                  'Список видео',
+                  'Посмотреть и удалить видео',
                   () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -129,9 +133,16 @@ class ParentDashboardScreen extends StatelessWidget {
                 ),
                 _buildActionTile(
                   context,
+                  Icons.sync,
+                  'Проверить новые видео',
+                  'Догрузить свежие ролики со всех каналов',
+                  () => provider.syncAllChannels(),
+                ),
+                _buildActionTile(
+                  context,
                   Icons.people,
-                  'Manage Channels',
-                  'Allow or block channels',
+                  'Список каналов',
+                  'Разрешить или заблокировать канал',
                   () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -142,6 +153,161 @@ class ParentDashboardScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Status of the GitHub-hosted channel list: this is the control surface the
+  /// parent actually manages the app from, so it goes above the stats.
+  Widget _buildRemoteStatus(BuildContext context, AppProvider provider) {
+    final error = provider.lastSyncError;
+    final configured = provider.isRemoteConfigured;
+
+    Color accent;
+    IconData icon;
+    String headline;
+
+    if (provider.isSyncing) {
+      accent = AppColors.ytGrey;
+      icon = Icons.sync;
+      headline = provider.syncStatus.isEmpty
+          ? 'Синхронизация…'
+          : provider.syncStatus;
+    } else if (!configured) {
+      accent = Colors.orange;
+      icon = Icons.link_off;
+      headline = 'Адрес channels.json не задан';
+    } else if (error != null) {
+      accent = AppColors.ytRed;
+      icon = Icons.cloud_off;
+      headline = 'Не удалось прочитать список: $error';
+    } else {
+      accent = Colors.green;
+      icon = Icons.cloud_done;
+      headline = 'Список каналов загружен';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.ytDarkSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accent, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  headline,
+                  style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Последняя удачная загрузка: ${_formatSyncTime(provider.lastSyncAt)}',
+            style: const TextStyle(color: AppColors.ytGrey, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            provider.channelsUrl,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.ytLightGrey, fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: provider.isSyncing
+                    ? null
+                    : () => provider.syncFromRemote(),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Обновить'),
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+              ),
+              TextButton.icon(
+                onPressed: () => _showChannelsUrlDialog(context, provider),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Адрес файла'),
+                style: TextButton.styleFrom(
+                    foregroundColor: AppColors.ytGrey,
+                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatSyncTime(DateTime? time) {
+    if (time == null) return 'ещё не было';
+    final local = time.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(local.day)}.${two(local.month)}.${local.year} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
+
+  void _showChannelsUrlDialog(BuildContext context, AppProvider provider) {
+    final controller = TextEditingController(text: provider.channelsUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.ytDarkSurface,
+        title: const Text('Адрес channels.json',
+            style: TextStyle(color: AppColors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Прямая ссылка на файл в репозитории (raw.githubusercontent.com):',
+              style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              style: const TextStyle(color: AppColors.white, fontSize: 13),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AppColors.ytDarkBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена',
+                style: TextStyle(color: AppColors.ytGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await provider.setChannelsUrl(controller.text);
+              await provider.syncFromRemote();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.ytRed),
+            child: const Text('Сохранить',
+                style: TextStyle(color: AppColors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -211,13 +377,13 @@ class ParentDashboardScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.ytDarkSurface,
-        title: const Text('Add Video',
+        title: const Text('Добавить видео',
             style: TextStyle(color: AppColors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Paste a YouTube video URL:',
+              'Вставьте ссылку на видео YouTube:',
               style: TextStyle(color: AppColors.ytGrey),
             ),
             const SizedBox(height: 12),
@@ -240,7 +406,7 @@ class ParentDashboardScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.ytGrey)),
+            child: const Text('Отмена', style: TextStyle(color: AppColors.ytGrey)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -252,8 +418,8 @@ class ParentDashboardScreen extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(video != null
-                        ? 'Video added: ${video.title}'
-                        : 'Failed to add video. Check URL.'),
+                        ? 'Добавлено: ${video.title}'
+                        : 'Не удалось добавить. Проверьте ссылку.'),
                     backgroundColor:
                         video != null ? Colors.green : AppColors.ytRed,
                   ),
@@ -261,7 +427,7 @@ class ParentDashboardScreen extends StatelessWidget {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.ytRed),
-            child: const Text('Add', style: TextStyle(color: AppColors.white)),
+            child: const Text('Добавить', style: TextStyle(color: AppColors.white)),
           ),
         ],
       ),
@@ -274,14 +440,15 @@ class ParentDashboardScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.ytDarkSurface,
-        title: const Text('Add Channel',
+        title: const Text('Добавить канал временно',
             style: TextStyle(color: AppColors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Paste a YouTube channel URL:',
-              style: TextStyle(color: AppColors.ytGrey),
+              'Ссылка на канал YouTube. Канал исчезнет при следующем запуске — '
+              'источником правды остаётся channels.json.',
+              style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -303,7 +470,7 @@ class ParentDashboardScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.ytGrey)),
+            child: const Text('Отмена', style: TextStyle(color: AppColors.ytGrey)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -316,8 +483,8 @@ class ParentDashboardScreen extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(channel != null
-                        ? 'Channel added: ${channel.name}'
-                        : 'Failed to add channel. Check URL.'),
+                        ? 'Канал добавлен: ${channel.name}'
+                        : 'Не удалось добавить канал. Проверьте ссылку.'),
                     backgroundColor:
                         channel != null ? Colors.green : AppColors.ytRed,
                   ),
@@ -325,7 +492,7 @@ class ParentDashboardScreen extends StatelessWidget {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.ytRed),
-            child: const Text('Add', style: TextStyle(color: AppColors.white)),
+            child: const Text('Добавить', style: TextStyle(color: AppColors.white)),
           ),
         ],
       ),
@@ -338,13 +505,13 @@ class ParentDashboardScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.ytDarkSurface,
-        title: const Text('Change PIN',
+        title: const Text('Сменить PIN',
             style: TextStyle(color: AppColors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Enter a new 4-6 digit PIN:',
+              'Новый PIN из 4-6 цифр:',
               style: TextStyle(color: AppColors.ytGrey),
             ),
             const SizedBox(height: 12),
@@ -370,7 +537,7 @@ class ParentDashboardScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.ytGrey)),
+            child: const Text('Отмена', style: TextStyle(color: AppColors.ytGrey)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -381,7 +548,7 @@ class ParentDashboardScreen extends StatelessWidget {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('PIN updated successfully'),
+                    content: Text('PIN обновлён'),
                     backgroundColor: Colors.green,
                   ),
                 );
@@ -389,7 +556,7 @@ class ParentDashboardScreen extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.ytRed),
             child:
-                const Text('Update', style: TextStyle(color: AppColors.white)),
+                const Text('Сохранить', style: TextStyle(color: AppColors.white)),
           ),
         ],
       ),

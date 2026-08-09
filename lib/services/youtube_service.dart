@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/video_item.dart';
 import '../models/channel_item.dart';
+import '../utils/config.dart';
 import 'package:uuid/uuid.dart';
 
 class YouTubeService {
@@ -32,16 +33,32 @@ class YouTubeService {
       }
     }
 
-    // Check if URL contains /@
-    final handleMatch = RegExp(r'/@([\w.-]+)').firstMatch(cleaned);
+    // Check if URL contains /@. Deliberately not \w: handles can be Cyrillic,
+    // and \w is ASCII-only in Dart.
+    final handleMatch = RegExp(r'/@([^/?#]+)').firstMatch(cleaned);
     if (handleMatch != null) {
-      return '@${handleMatch.group(1)}';
+      return '@${Uri.decodeComponent(handleMatch.group(1)!)}';
     }
 
     return null;
   }
 
+  /// Pull the name out of a legacy custom URL: /c/TeslaKids, /user/Foo, or a
+  /// bare name.
+  String? _extractLegacyName(String input) {
+    final match =
+        RegExp(r'youtube\.com/(?:c/|user/)?([^/?#@]+)').firstMatch(input.trim());
+    final name = match?.group(1)?.trim();
+    if (name != null && name.isNotEmpty) return Uri.decodeComponent(name);
+
+    // Not a URL at all — treat the whole string as a name.
+    if (!input.contains('/') && !input.startsWith('@')) return input.trim();
+    return null;
+  }
+
   /// Resolve a channel URL/handle/ID to a Channel object
+  Future<Channel?> resolveChannel(String input) => _resolveChannel(input);
+
   Future<Channel?> _resolveChannel(String input) async {
     final cleaned = input.trim();
     developer.log('Resolving channel from: $cleaned');
@@ -71,21 +88,25 @@ class YouTubeService {
       developer.log('parseChannelId failed: $e');
     }
 
-    // 3. Try as username
-    try {
-      final username = cleaned
-          .replaceAll(RegExp(r'https?://(www\.)?youtube\.com/'), '')
-          .replaceAll('user/', '')
-          .replaceAll('c/', '')
-          .replaceAll('/', '')
-          .trim();
-      if (username.isNotEmpty) {
-        developer.log('Trying as username: $username');
-        final channel = await yt.channels.getByUsername(username);
-        return channel;
+    // 3. Legacy custom URL (/c/TeslaKids) or a bare name.
+    final legacy = _extractLegacyName(cleaned);
+    if (legacy != null) {
+      // Most /c/ vanity names were carried over verbatim as the @handle when
+      // YouTube introduced handles, so this succeeds far more often than the
+      // /user/ endpoint below.
+      try {
+        developer.log('Trying legacy name as handle: @$legacy');
+        return await yt.channels.getByHandle('@$legacy');
+      } catch (e) {
+        developer.log('getByHandle failed for @$legacy: $e');
       }
-    } catch (e) {
-      developer.log('getByUsername failed: $e');
+
+      try {
+        developer.log('Trying as username: $legacy');
+        return await yt.channels.getByUsername(legacy);
+      } catch (e) {
+        developer.log('getByUsername failed for $legacy: $e');
+      }
     }
 
     return null;
@@ -144,25 +165,32 @@ class YouTubeService {
     }
   }
 
-  Future<List<VideoItem>> getChannelVideos(String channelUrl, {int limit = 50}) async {
+  /// Pull a channel's uploads.
+  ///
+  /// [stopAtIds] turns this into an incremental refresh: `getUploads` yields
+  /// newest-first, so hitting a video we already stored means everything below
+  /// it is known too and the scan can stop. [scanLimit] is the safety valve for
+  /// the case where nothing matches (e.g. the channel deleted its recent
+  /// uploads) so a "check for new videos" never degrades into a full crawl.
+  Future<List<VideoItem>> getChannelUploadsById(
+    String youtubeChannelId, {
+    int limit = kChannelSyncLimit,
+    Set<String> stopAtIds = const {},
+    int scanLimit = 0,
+    void Function(int fetched)? onProgress,
+  }) async {
+    final videos = <VideoItem>[];
     try {
-      developer.log('Fetching channel videos for: $channelUrl');
+      var scanned = 0;
+      await for (final video
+          in yt.channels.getUploads(ChannelId(youtubeChannelId))) {
+        scanned++;
+        if (stopAtIds.contains(video.id.value)) {
+          developer.log('Reached known video ${video.id.value}, stopping scan');
+          break;
+        }
 
-      final channel = await _resolveChannel(channelUrl);
-      if (channel == null) {
-        developer.log('Could not resolve channel: $channelUrl');
-        return [];
-      }
-
-      developer.log('Fetching uploads for channel: ${channel.title} (${channel.id})');
-      final uploads = yt.channels.getUploads(channel.id);
-      final videos = <VideoItem>[];
-
-      await for (final video in uploads) {
-        if (videos.length >= limit) break;
         final duration = video.duration;
-        final isShort = duration != null && duration.inSeconds <= 60;
-
         videos.add(VideoItem(
           id: _uuid.v4(),
           youtubeVideoId: video.id.value,
@@ -173,36 +201,54 @@ class YouTubeService {
           duration: _formatDuration(duration),
           viewCount: _formatViewCount(video.engagement.viewCount),
           publishedAt: video.uploadDate ?? DateTime.now(),
-          isShort: isShort,
+          isShort: duration != null && duration.inSeconds <= 60,
         ));
-      }
 
-      developer.log('Fetched ${videos.length} channel videos');
-      return videos;
+        if (onProgress != null && videos.length % 10 == 0) {
+          onProgress(videos.length);
+        }
+        if (videos.length >= limit) break;
+        if (scanLimit > 0 && scanned >= scanLimit) break;
+      }
+      onProgress?.call(videos.length);
+      developer.log('Fetched ${videos.length} uploads for $youtubeChannelId');
     } catch (e, stackTrace) {
-      developer.log('Error fetching channel videos: $e', error: e, stackTrace: stackTrace);
+      developer.log('Error fetching channel uploads: $e',
+          error: e, stackTrace: stackTrace);
+      // Keep whatever arrived before the failure — a partial sync beats none.
+    }
+    return videos;
+  }
+
+  Future<List<VideoItem>> getChannelVideos(String channelUrl,
+      {int limit = kChannelSyncLimit}) async {
+    final channel = await _resolveChannel(channelUrl);
+    if (channel == null) {
+      developer.log('Could not resolve channel: $channelUrl');
       return [];
     }
+    return getChannelUploadsById(channel.id.value, limit: limit);
+  }
+
+  ChannelItem toChannelItem(Channel channel, {String sourceRef = ''}) {
+    return ChannelItem(
+      id: _uuid.v4(),
+      youtubeChannelId: channel.id.value,
+      name: channel.title,
+      avatarUrl: channel.logoUrl,
+      subscriberCount: '',
+      sourceRef: sourceRef,
+    );
   }
 
   Future<ChannelItem?> getChannelInfo(String channelUrl) async {
     try {
-      developer.log('Fetching channel info for: $channelUrl');
-
       final channel = await _resolveChannel(channelUrl);
       if (channel == null) {
         developer.log('Could not resolve channel: $channelUrl');
         return null;
       }
-
-      developer.log('Got channel: ${channel.title}');
-      return ChannelItem(
-        id: _uuid.v4(),
-        youtubeChannelId: channel.id.value,
-        name: channel.title,
-        avatarUrl: channel.logoUrl,
-        subscriberCount: '',
-      );
+      return toChannelItem(channel);
     } catch (e, stackTrace) {
       developer.log('Error fetching channel: $e', error: e, stackTrace: stackTrace);
       return null;

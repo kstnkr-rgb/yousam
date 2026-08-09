@@ -99,16 +99,16 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
                     bottom: 100,
                     child: Column(
                       children: [
-                        _buildSideAction(Icons.thumb_up_outlined, 'Like'),
+                        _buildSideAction(Icons.thumb_up_outlined, 'Нравится'),
                         const SizedBox(height: 24),
                         _buildSideAction(
-                            Icons.thumb_down_outlined, 'Dislike'),
+                            Icons.thumb_down_outlined, 'Не нравится'),
                         const SizedBox(height: 24),
                         _buildSideAction(Icons.comment_outlined, '0'),
                         const SizedBox(height: 24),
-                        _buildFlippedAction(Icons.reply, 'Share'),
+                        _buildFlippedAction(Icons.reply, 'Поделиться'),
                         const SizedBox(height: 24),
-                        _buildSideAction(Icons.graphic_eq, 'Remix'),
+                        _buildSideAction(Icons.graphic_eq, 'Ремикс'),
                         const SizedBox(height: 24),
                         // Music disc
                         Container(
@@ -189,7 +189,7 @@ class _ShortsPlayerScreenState extends State<ShortsPlayerScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: const Text(
-                                'Subscribe',
+                                'Подписка',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,

@@ -13,7 +13,7 @@ class ManageVideosScreen extends StatelessWidget {
       backgroundColor: AppColors.ytDarkBg,
       appBar: AppBar(
         backgroundColor: AppColors.ytDarkBg,
-        title: const Text('Manage Videos',
+        title: const Text('Видео',
             style: TextStyle(color: AppColors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
@@ -25,7 +25,7 @@ class ManageVideosScreen extends StatelessWidget {
           if (provider.allVideos.isEmpty) {
             return const Center(
               child: Text(
-                'No videos added yet',
+                'Видео пока нет',
                 style: TextStyle(color: AppColors.ytGrey, fontSize: 16),
               ),
             );
@@ -108,16 +108,16 @@ class ManageVideosScreen extends StatelessWidget {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: AppColors.ytDarkSurface,
-                          title: const Text('Remove Video',
+                          title: const Text('Удалить видео',
                               style: TextStyle(color: AppColors.white)),
                           content: Text(
-                            'Remove "${video.title}" from the approved list?',
+                            'Удалить «${video.title}» из списка?',
                             style: const TextStyle(color: AppColors.ytGrey),
                           ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel',
+                              child: const Text('Отмена',
                                   style:
                                       TextStyle(color: AppColors.ytGrey)),
                             ),
@@ -128,7 +128,7 @@ class ManageVideosScreen extends StatelessWidget {
                               },
                               style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.ytRed),
-                              child: const Text('Remove',
+                              child: const Text('Удалить',
                                   style:
                                       TextStyle(color: AppColors.white)),
                             ),

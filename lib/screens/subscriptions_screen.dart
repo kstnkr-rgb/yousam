@@ -21,13 +21,13 @@ class SubscriptionsScreen extends StatelessWidget {
                 Icon(Icons.subscriptions_outlined,
                     size: 72, color: AppColors.ytGrey),
                 SizedBox(height: 16),
-                Text('No subscriptions yet',
+                Text('Каналов пока нет',
                     style: TextStyle(
                         color: AppColors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w500)),
                 SizedBox(height: 8),
-                Text('Channels you subscribe to will show here',
+                Text('Попроси родителей добавить каналы',
                     style:
                         TextStyle(color: AppColors.ytGrey, fontSize: 14)),
               ],
@@ -144,7 +144,7 @@ class SubscriptionsScreen extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text(
-                    'Today',
+                    'Новое',
                     style: TextStyle(
                       color: AppColors.white,
                       fontSize: 16,

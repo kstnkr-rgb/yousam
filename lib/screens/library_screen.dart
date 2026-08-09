@@ -27,7 +27,7 @@ class LibraryScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Kid',
+                'Ребёнок',
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 22,
@@ -36,7 +36,7 @@ class LibraryScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                '@kid',
+                '@kidtube',
                 style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
               ),
               const SizedBox(height: 24),
@@ -45,20 +45,20 @@ class LibraryScreen extends StatelessWidget {
               _buildSection(
                 context,
                 icon: Icons.history,
-                title: 'History',
-                subtitle: '${provider.allVideos.length} videos available',
+                title: 'Доступно видео',
+                subtitle: '${provider.allVideos.length} видео',
               ),
               _buildSection(
                 context,
                 icon: Icons.play_circle_outline,
-                title: 'Your videos',
-                subtitle: 'No videos',
+                title: 'Мои видео',
+                subtitle: 'Пока пусто',
               ),
               _buildSection(
                 context,
                 icon: Icons.download_outlined,
-                title: 'Downloads',
-                subtitle: 'No downloads',
+                title: 'Скачанные',
+                subtitle: 'Пока пусто',
               ),
 
               const Divider(color: AppColors.ytDarkSurface, height: 32),
@@ -81,7 +81,7 @@ class LibraryScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Your Shorts',
+                      'Мои Shorts',
                       style: TextStyle(
                         color: AppColors.white,
                         fontSize: 16,
@@ -113,14 +113,14 @@ class LibraryScreen extends StatelessWidget {
                 child: _buildSection(
                   context,
                   icon: Icons.settings_outlined,
-                  title: 'Settings',
+                  title: 'Настройки',
                   subtitle: '',
                 ),
               ),
               _buildSection(
                 context,
                 icon: Icons.help_outline,
-                title: 'Help & feedback',
+                title: 'Помощь',
                 subtitle: '',
               ),
 

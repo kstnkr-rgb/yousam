@@ -31,7 +31,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
         MaterialPageRoute(builder: (context) => const ParentDashboardScreen()),
       );
     } else {
-      setState(() => _error = 'Incorrect PIN. Please try again.');
+      setState(() => _error = 'Неверный PIN. Попробуйте ещё раз.');
     }
   }
 
@@ -45,7 +45,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Parent Access',
+        title: const Text('Родительский режим',
             style: TextStyle(color: AppColors.white)),
       ),
       body: Center(
@@ -57,7 +57,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
               const Icon(Icons.lock_outline, size: 64, color: AppColors.ytRed),
               const SizedBox(height: 24),
               const Text(
-                'Enter Parent PIN',
+                'Введите родительский PIN',
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 24,
@@ -66,7 +66,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Default PIN is 1234',
+                'PIN по умолчанию — 1234',
                 style: TextStyle(color: AppColors.ytGrey, fontSize: 14),
               ),
               const SizedBox(height: 32),
@@ -122,7 +122,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  child: const Text('Verify',
+                  child: const Text('Войти',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),

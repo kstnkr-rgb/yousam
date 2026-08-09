@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_provider.dart';
 import '../utils/constants.dart';
 import 'home_screen.dart';
+import 'kid_search_screen.dart';
 import 'shorts_tab_screen.dart';
 import 'subscriptions_screen.dart';
 import 'library_screen.dart';
@@ -16,21 +19,35 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
+  static const _searchTabIndex = 2;
+
   final List<Widget> _screens = const [
     HomeScreen(),
     ShortsTabScreen(),
-    SizedBox(), // placeholder for + button
+    SizedBox(), // search opens as its own route, never as a tab body
     SubscriptionsScreen(),
     LibraryScreen(),
   ];
 
   void _onTabTapped(int index) {
-    if (index == 2) return; // + button does nothing for kids
+    if (index == _searchTabIndex) {
+      _openSearch();
+      return;
+    }
     setState(() => _currentIndex = index);
+  }
+
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const KidSearchScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSyncing = context.select<AppProvider, bool>((p) => p.isSyncing);
+
     return Scaffold(
       backgroundColor: AppColors.ytDarkBg,
       appBar: _currentIndex == 1
@@ -41,6 +58,18 @@ class _MainShellState extends State<MainShell> {
               scrolledUnderElevation: 0,
               toolbarHeight: 48,
               titleSpacing: 16,
+              // A hairline progress bar is all the child sees of a channel
+              // sync — no blocking spinners.
+              bottom: isSyncing
+                  ? const PreferredSize(
+                      preferredSize: Size.fromHeight(2),
+                      child: LinearProgressIndicator(
+                        minHeight: 2,
+                        color: AppColors.ytRed,
+                        backgroundColor: Colors.transparent,
+                      ),
+                    )
+                  : null,
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -56,7 +85,7 @@ class _MainShellState extends State<MainShell> {
                   ),
                   const SizedBox(width: 6),
                   const Text(
-                    'YouTube',
+                    'KidTube',
                     style: TextStyle(
                       color: AppColors.white,
                       fontSize: 20,
@@ -68,25 +97,9 @@ class _MainShellState extends State<MainShell> {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.cast_outlined,
-                      color: AppColors.white, size: 22),
-                  onPressed: () {},
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined,
-                      color: AppColors.white, size: 24),
-                  onPressed: () {},
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
                   icon: const Icon(Icons.search,
                       color: AppColors.white, size: 24),
-                  onPressed: () {},
+                  onPressed: _openSearch,
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),
                 ),
@@ -116,7 +129,7 @@ class _MainShellState extends State<MainShell> {
               ],
             ),
       body: IndexedStack(
-        index: _currentIndex == 2 ? 0 : _currentIndex,
+        index: _currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: Column(
@@ -142,34 +155,28 @@ class _MainShellState extends State<MainShell> {
               const BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
                 activeIcon: Icon(Icons.home_filled),
-                label: 'Home',
+                label: 'Главная',
               ),
               BottomNavigationBarItem(
                 icon: _buildShortsIcon(false),
                 activeIcon: _buildShortsIcon(true),
                 label: 'Shorts',
               ),
-              BottomNavigationBarItem(
-                icon: Container(
-                  width: 36,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.ytGrey, width: 1.5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.add, size: 22, color: AppColors.white),
-                ),
-                label: '',
+              // Replaces YouTube's upload button, which does nothing useful in
+              // a kids' app.
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.search),
+                label: 'Поиск',
               ),
               const BottomNavigationBarItem(
                 icon: Icon(Icons.subscriptions_outlined),
                 activeIcon: Icon(Icons.subscriptions),
-                label: 'Subscriptions',
+                label: 'Каналы',
               ),
               const BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
                 activeIcon: Icon(Icons.person),
-                label: 'You',
+                label: 'Я',
               ),
             ],
           ),

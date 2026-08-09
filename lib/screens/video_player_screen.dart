@@ -141,7 +141,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              '${widget.video.viewCount} views \u00B7 ${timeago.format(widget.video.publishedAt)}',
+              '${widget.video.viewCount} \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u043E\u0432 \u00B7 ${timeago.format(widget.video.publishedAt, locale: 'ru')}',
               style: const TextStyle(
                 color: AppColors.ytGrey,
                 fontSize: 12,
@@ -153,9 +153,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               Wrap(
                 spacing: 6,
                 children: [
-                  _buildTag('#safetube'),
-                  _buildTag('#kids'),
-                  _buildTag('#safe'),
+                  _buildTag('#kidtube'),
+                  _buildTag('#длядетей'),
                 ],
               ),
             ],
@@ -219,7 +218,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Text(
-              'Subscribe',
+              'Подписка',
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 13,
@@ -238,19 +237,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          _buildActionChip(Icons.thumb_up_outlined, 'Like'),
+          _buildActionChip(Icons.thumb_up_outlined, 'Нравится'),
           const SizedBox(width: 8),
           _buildActionChip(Icons.thumb_down_outlined, ''),
           const SizedBox(width: 8),
-          _buildActionChip(Icons.reply, 'Share', flipped: true),
-          const SizedBox(width: 8),
-          _buildActionChip(Icons.download_outlined, 'Download'),
-          const SizedBox(width: 8),
-          _buildActionChip(Icons.content_cut, 'Clip'),
-          const SizedBox(width: 8),
-          _buildActionChip(Icons.bookmark_border, 'Save'),
-          const SizedBox(width: 8),
-          _buildActionChip(Icons.flag_outlined, 'Report'),
+          _buildActionChip(Icons.bookmark_border, 'Сохранить'),
         ],
       ),
     );
@@ -301,35 +292,22 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Text(
-                'Comments',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(width: 8),
-              Text(
-                '0',
-                style: TextStyle(color: AppColors.ytGrey, fontSize: 14),
-              ),
-            ],
+          const Text(
+            'Комментарии',
+            style: TextStyle(
+              color: AppColors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
-          Row(
+          const Row(
             children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.ytChipBg,
-                child: const Icon(Icons.person, color: AppColors.ytGrey, size: 14),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
+              Icon(Icons.lock_outline, color: AppColors.ytGrey, size: 14),
+              SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  'Add a comment...',
+                  'Комментарии отключены',
                   style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
                 ),
               ),
@@ -343,15 +321,37 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   Widget _buildSuggestedVideos() {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
-        final suggested = provider.regularVideos
-            .where((v) => v.id != widget.video.id && !v.isShort)
+        // provider.regularVideos is already restricted to allowed channels, so
+        // nothing outside the parent's list can appear here. Ordering puts the
+        // current channel first, which is what "more like this" means to a kid.
+        final pool = provider.regularVideos
+            .where((v) => v.youtubeVideoId != widget.video.youtubeVideoId)
             .toList();
+
+        final sameChannel = pool
+            .where((v) => v.channelId == widget.video.channelId)
+            .toList();
+        final others = pool
+            .where((v) => v.channelId != widget.video.channelId)
+            .toList();
+        final suggested = [...sameChannel, ...others];
 
         if (suggested.isEmpty) return const SizedBox.shrink();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
+              child: Text(
+                'Похожие видео',
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
             ...suggested.map((video) => VideoCard(
                   video: video,
                   compact: true,

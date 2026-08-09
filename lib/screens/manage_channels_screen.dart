@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../models/channel_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/constants.dart';
 
@@ -33,7 +34,7 @@ class _ManageChannelsScreenState extends State<ManageChannelsScreen>
       backgroundColor: AppColors.ytDarkBg,
       appBar: AppBar(
         backgroundColor: AppColors.ytDarkBg,
-        title: const Text('Manage Channels',
+        title: const Text('Каналы',
             style: TextStyle(color: AppColors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
@@ -45,8 +46,8 @@ class _ManageChannelsScreenState extends State<ManageChannelsScreen>
           labelColor: AppColors.white,
           unselectedLabelColor: AppColors.ytGrey,
           tabs: const [
-            Tab(text: 'Allowed'),
-            Tab(text: 'Blocked'),
+            Tab(text: 'Разрешённые'),
+            Tab(text: 'Заблокированные'),
           ],
         ),
       ),
@@ -75,14 +76,14 @@ class _ManageChannelsScreenState extends State<ManageChannelsScreen>
   }
 
   Widget _buildChannelList(
-    List channels, {
+    List<ChannelItem> channels, {
     required bool isAllowed,
     required AppProvider provider,
   }) {
     if (channels.isEmpty) {
       return Center(
         child: Text(
-          isAllowed ? 'No allowed channels' : 'No blocked channels',
+          isAllowed ? 'Нет разрешённых каналов' : 'Нет заблокированных каналов',
           style: const TextStyle(color: AppColors.ytGrey, fontSize: 16),
         ),
       );
@@ -115,9 +116,18 @@ class _ManageChannelsScreenState extends State<ManageChannelsScreen>
             style: const TextStyle(color: AppColors.white, fontSize: 15),
           ),
           subtitle: Text(
-            isAllowed ? 'Allowed' : 'Blocked',
+            // A channel with no sourceRef came from the "add temporarily"
+            // dialog and the next remote sync will drop it. Say so here rather
+            // than letting the parent discover it by restarting the app.
+            isAllowed
+                ? (channel.isRemote
+                    ? 'Из channels.json'
+                    : 'Временный — исчезнет при перезапуске')
+                : 'Заблокирован',
             style: TextStyle(
-              color: isAllowed ? Colors.green : AppColors.ytRed,
+              color: isAllowed
+                  ? (channel.isRemote ? Colors.green : Colors.orange)
+                  : AppColors.ytRed,
               fontSize: 12,
             ),
           ),
@@ -127,20 +137,20 @@ class _ManageChannelsScreenState extends State<ManageChannelsScreen>
               if (isAllowed)
                 IconButton(
                   icon: const Icon(Icons.block, color: AppColors.ytRed, size: 22),
-                  tooltip: 'Block channel',
+                  tooltip: 'Заблокировать',
                   onPressed: () => provider.blockChannel(channel),
                 )
               else
                 IconButton(
                   icon: const Icon(Icons.check_circle_outline,
                       color: Colors.green, size: 22),
-                  tooltip: 'Unblock channel',
+                  tooltip: 'Разблокировать',
                   onPressed: () => provider.unblockChannel(channel),
                 ),
               IconButton(
                 icon: const Icon(Icons.delete_outline,
                     color: AppColors.ytGrey, size: 22),
-                tooltip: 'Remove channel',
+                tooltip: 'Удалить',
                 onPressed: () => provider.removeChannel(channel.id),
               ),
             ],

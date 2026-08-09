@@ -133,7 +133,7 @@ class VideoCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${video.channelName} \u00B7 ${video.viewCount} views \u00B7 ${timeago.format(video.publishedAt)}',
+                          '${video.channelName} \u00B7 ${video.viewCount} просмотров \u00B7 ${timeago.format(video.publishedAt, locale: 'ru')}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -240,14 +240,14 @@ class VideoCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${video.channelName} \u00B7 ${video.viewCount} views',
+                      '${video.channelName} \u00B7 ${video.viewCount} просмотров',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: AppColors.ytGrey, fontSize: 12),
                     ),
                     Text(
-                      timeago.format(video.publishedAt),
+                      timeago.format(video.publishedAt, locale: 'ru'),
                       style: const TextStyle(
                           color: AppColors.ytGrey, fontSize: 12),
                     ),

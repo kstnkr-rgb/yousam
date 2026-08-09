@@ -43,13 +43,13 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
         _results = results;
         _isSearching = false;
         if (results.isEmpty) {
-          _errorMessage = 'No videos found for "$query". Try a different search.';
+          _errorMessage = 'Ничего не найдено по запросу «$query».';
         }
       });
     } catch (e) {
       setState(() {
         _isSearching = false;
-        _errorMessage = 'Search failed. Check your internet connection.';
+        _errorMessage = 'Поиск не удался. Проверьте интернет.';
       });
     }
   }
@@ -69,7 +69,7 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
           autofocus: true,
           style: const TextStyle(color: AppColors.white, fontSize: 16),
           decoration: const InputDecoration(
-            hintText: 'Search YouTube videos...',
+            hintText: 'Поиск по YouTube…',
             hintStyle: TextStyle(color: AppColors.ytGrey),
             border: InputBorder.none,
           ),
@@ -107,7 +107,7 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
             CircularProgressIndicator(color: AppColors.ytRed),
             SizedBox(height: 16),
             Text(
-              'Searching YouTube...',
+              'Ищем на YouTube…',
               style: TextStyle(color: AppColors.ytGrey, fontSize: 14),
             ),
           ],
@@ -131,7 +131,7 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Tip: Try searching for video titles, topics, or paste a direct YouTube URL.',
+                'Подсказка: введите название, тему или вставьте ссылку на видео.',
                 style: TextStyle(color: AppColors.ytLightGrey, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -151,13 +151,13 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
               Icon(Icons.search, size: 48, color: AppColors.ytGrey),
               SizedBox(height: 16),
               Text(
-                'Search for videos to add',
+                'Найдите видео, чтобы добавить',
                 style: TextStyle(color: AppColors.white, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 8),
               Text(
-                'Search by video title, topic, or channel name.\nYou can also paste a YouTube URL directly.',
+                'Поиск по названию, теме или каналу.\nМожно вставить ссылку на YouTube.',
                 style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -228,7 +228,7 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
             children: [
               Flexible(
                 child: Text(
-                  '${video.channelName} \u00B7 ${video.viewCount} views',
+                  '${video.channelName} \u00B7 ${video.viewCount} просмотров',
                   style:
                       const TextStyle(color: AppColors.ytGrey, fontSize: 11),
                   overflow: TextOverflow.ellipsis,
@@ -269,7 +269,7 @@ class _SearchAddScreenState extends State<SearchAddScreen> {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Added: ${video.title}'),
+                          content: Text('Добавлено: ${video.title}'),
                           backgroundColor: Colors.green,
                           duration: const Duration(seconds: 1),
                         ),

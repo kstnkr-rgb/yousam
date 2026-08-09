@@ -1,0 +1,52 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    # Editing the channel list is a data change, not a code change — it must
+    # not spend seven minutes rebuilding an identical APK.
+    paths-ignore:
+      - 'channels.json'
+      - '**/*.md'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build release APK
+        # CHANNELS_URL is derived from this repository, so a fork or rename
+        # keeps working without editing lib/utils/config.dart.
+        run: |
+          flutter build apk --release \
+            --dart-define=CHANNELS_URL=https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/channels.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kidtube-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

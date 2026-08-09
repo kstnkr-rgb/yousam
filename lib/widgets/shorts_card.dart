@@ -74,7 +74,7 @@ class ShortsCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.viewCount} views',
+                    '${video.viewCount} просмотров',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 12,

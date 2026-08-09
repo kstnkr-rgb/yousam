@@ -75,13 +75,13 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
                   Icon(Icons.play_circle_outline,
                       size: 72, color: AppColors.ytGrey),
                   SizedBox(height: 16),
-                  Text('No Shorts yet',
+                  Text('Shorts пока нет',
                       style: TextStyle(
                           color: AppColors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w500)),
                   SizedBox(height: 8),
-                  Text('Ask your parent to add some Shorts!',
+                  Text('Попроси родителей добавить каналы',
                       style: TextStyle(
                           color: AppColors.ytGrey, fontSize: 14)),
                 ],
@@ -157,14 +157,14 @@ class _ShortsPage extends StatelessWidget {
               // Like
               _ActionButton(
                 icon: Icons.thumb_up_outlined,
-                label: 'Like',
+                label: 'Нравится',
                 onTap: () {},
               ),
               const SizedBox(height: 24),
               // Dislike
               _ActionButton(
                 icon: Icons.thumb_down_outlined,
-                label: 'Dislike',
+                label: 'Не нравится',
                 onTap: () {},
               ),
               const SizedBox(height: 24),
@@ -178,7 +178,7 @@ class _ShortsPage extends StatelessWidget {
               // Share
               _ActionButton(
                 icon: Icons.reply,
-                label: 'Share',
+                label: 'Поделиться',
                 isFlipped: true,
                 onTap: () {},
               ),
@@ -186,7 +186,7 @@ class _ShortsPage extends StatelessWidget {
               // Remix
               _ActionButton(
                 icon: Icons.graphic_eq,
-                label: 'Remix',
+                label: 'Ремикс',
                 onTap: () {},
               ),
               const SizedBox(height: 24),
@@ -267,7 +267,7 @@ class _ShortsPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
-                      'Subscribe',
+                      'Подписка',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,

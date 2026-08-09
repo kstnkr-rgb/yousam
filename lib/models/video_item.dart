@@ -12,6 +12,11 @@ class VideoItem {
   final bool isShort;
   final bool isApproved;
 
+  /// Video the parent added one-by-one via URL. Stays visible even when its
+  /// channel is not in the allowed list, otherwise "add video by URL" would
+  /// silently do nothing.
+  final bool isManual;
+
   VideoItem({
     required this.id,
     required this.youtubeVideoId,
@@ -25,7 +30,31 @@ class VideoItem {
     DateTime? publishedAt,
     this.isShort = false,
     this.isApproved = true,
+    this.isManual = false,
   }) : publishedAt = publishedAt ?? DateTime.now();
+
+  /// Lowercased haystack for local search. Built in Dart on purpose: SQLite's
+  /// LIKE and lower() only fold ASCII, so Cyrillic titles would never match a
+  /// lowercase query.
+  String get searchText => '$title $channelName'.toLowerCase();
+
+  VideoItem copyWith({bool? isManual, bool? isApproved}) {
+    return VideoItem(
+      id: id,
+      youtubeVideoId: youtubeVideoId,
+      title: title,
+      channelName: channelName,
+      channelId: channelId,
+      thumbnailUrl: thumbnailUrl,
+      channelAvatarUrl: channelAvatarUrl,
+      duration: duration,
+      viewCount: viewCount,
+      publishedAt: publishedAt,
+      isShort: isShort,
+      isApproved: isApproved ?? this.isApproved,
+      isManual: isManual ?? this.isManual,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -41,6 +70,8 @@ class VideoItem {
       'publishedAt': publishedAt.toIso8601String(),
       'isShort': isShort ? 1 : 0,
       'isApproved': isApproved ? 1 : 0,
+      'isManual': isManual ? 1 : 0,
+      'searchText': searchText,
     };
   }
 
@@ -58,6 +89,7 @@ class VideoItem {
       publishedAt: DateTime.tryParse(map['publishedAt'] as String? ?? '') ?? DateTime.now(),
       isShort: (map['isShort'] as int?) == 1,
       isApproved: (map['isApproved'] as int?) == 1,
+      isManual: (map['isManual'] as int?) == 1,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/video_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/constants.dart';
 import '../widgets/video_card.dart';
@@ -15,155 +16,97 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedChip = 0;
-  final List<String> _chips = [
-    'All',
-    'Music',
-    'Gaming',
-    'Recently uploaded',
-    'Watched',
-    'New to you',
-  ];
+  /// Empty means "Все". Otherwise the YouTube channel id being filtered on.
+  String _channelFilter = '';
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
+        // The chips are the allowed channels themselves — the original app
+        // shipped fake YouTube categories that filtered nothing.
+        final channels = provider.allowedChannels;
+        if (_channelFilter.isNotEmpty &&
+            !channels.any((c) => c.youtubeChannelId == _channelFilter)) {
+          _channelFilter = '';
+        }
+
+        final regular = _filter(provider.regularVideos);
+        final shorts = _filter(provider.shorts);
+
         return RefreshIndicator(
           color: AppColors.ytRed,
           backgroundColor: AppColors.ytDarkSurface,
-          onRefresh: () => provider.loadAllData(),
+          onRefresh: () => provider.refreshEverything(),
           child: CustomScrollView(
             slivers: [
-              // Filter chips bar
-              SliverToBoxAdapter(
-                child: Container(
-                  color: AppColors.ytDarkBg,
-                  height: 48,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    itemCount: _chips.length,
-                    itemBuilder: (context, index) {
-                      final isSelected = _selectedChip == index;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedChip = index),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.white
-                                  : AppColors.ytChipBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                _chips[index],
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.black
-                                      : AppColors.white,
-                                  fontSize: 14,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w500
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+              if (channels.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Container(
+                    color: AppColors.ytDarkBg,
+                    height: 48,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      itemCount: channels.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _chip('Все', _channelFilter.isEmpty,
+                              () => setState(() => _channelFilter = ''));
+                        }
+                        final channel = channels[index - 1];
+                        final selected =
+                            _channelFilter == channel.youtubeChannelId;
+                        return _chip(
+                          channel.name,
+                          selected,
+                          () => setState(() => _channelFilter =
+                              selected ? '' : channel.youtubeChannelId),
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
 
-              // Loading
               if (provider.isLoading)
                 const SliverFillRemaining(
                   child: Center(
-                    child:
-                        CircularProgressIndicator(color: AppColors.ytRed),
+                    child: CircularProgressIndicator(color: AppColors.ytRed),
                   ),
                 )
-              // Empty state
-              else if (provider.allVideos.isEmpty)
-                SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.play_circle_outline,
-                            size: 72, color: AppColors.ytGrey),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No videos yet',
-                          style: TextStyle(
-                              color: AppColors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Ask your parent to add some videos!',
-                          style: TextStyle(
-                              color: AppColors.ytGrey, fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              // Content
+              else if (regular.isEmpty && shorts.isEmpty)
+                SliverFillRemaining(child: _buildEmptyState(provider))
               else ...[
-                // Regular video cards (first batch)
-                if (provider.regularVideos.isNotEmpty)
+                if (regular.isNotEmpty)
                   SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        // Insert Shorts shelf after 2 videos
-                        if (index == 2 && provider.shorts.isNotEmpty) {
-                          return _buildShortsShelf(provider);
+                        // Shorts shelf slots in after the second video, as on
+                        // YouTube.
+                        if (index == 2 && shorts.isNotEmpty) {
+                          return _buildShortsShelf(shorts);
                         }
 
-                        // Adjust index for the shorts shelf insertion
-                        final videoIndex = (index > 2 && provider.shorts.isNotEmpty)
-                            ? index - 1
-                            : index;
+                        final videoIndex =
+                            (index > 2 && shorts.isNotEmpty) ? index - 1 : index;
 
-                        if (videoIndex >= provider.regularVideos.length) {
+                        if (videoIndex >= regular.length) {
                           return const SizedBox.shrink();
                         }
 
-                        final video = provider.regularVideos[videoIndex];
+                        final video = regular[videoIndex];
                         return VideoCard(
                           video: video,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    VideoPlayerScreen(video: video),
-                              ),
-                            );
-                          },
+                          onTap: () => _open(video),
                         );
                       },
-                      childCount: provider.regularVideos.length +
-                          (provider.shorts.isNotEmpty ? 1 : 0),
+                      childCount: regular.length + (shorts.isNotEmpty ? 1 : 0),
                     ),
                   ),
 
-                // If only shorts and no regular videos
-                if (provider.regularVideos.isEmpty &&
-                    provider.shorts.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: _buildShortsShelf(provider),
-                  ),
+                if (regular.isEmpty && shorts.isNotEmpty)
+                  SliverToBoxAdapter(child: _buildShortsShelf(shorts)),
               ],
             ],
           ),
@@ -172,22 +115,103 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // YouTube-style Shorts shelf
-  Widget _buildShortsShelf(AppProvider provider) {
+  List<VideoItem> _filter(List<VideoItem> videos) {
+    if (_channelFilter.isEmpty) return videos;
+    return videos.where((v) => v.channelId == _channelFilter).toList();
+  }
+
+  void _open(VideoItem video) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => VideoPlayerScreen(video: video)),
+    );
+  }
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.white : AppColors.ytChipBg,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.black : AppColors.white,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(AppProvider provider) {
+    if (provider.isSyncing) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: AppColors.ytRed),
+            const SizedBox(height: 16),
+            Text(
+              provider.syncStatus.isEmpty
+                  ? 'Загружаем видео…'
+                  : provider.syncStatus,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.ytGrey, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.play_circle_outline,
+                size: 72, color: AppColors.ytGrey),
+            const SizedBox(height: 16),
+            const Text(
+              'Видео пока нет',
+              style: TextStyle(
+                  color: AppColors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _channelFilter.isNotEmpty
+                  ? 'У этого канала пока нет загруженных видео'
+                  : 'Попроси родителей добавить каналы',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.ytGrey, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortsShelf(List<VideoItem> shorts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top divider
-        Container(
-          height: 4,
-          color: AppColors.ytDarkSurface,
-        ),
-        // Header
+        Container(height: 4, color: AppColors.ytDarkSurface),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: Row(
             children: [
-              // Shorts icon
               Container(
                 width: 22,
                 height: 26,
@@ -210,48 +234,37 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        // Shorts horizontal list
         SizedBox(
           height: 290,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            itemCount: provider.shorts.length,
+            itemCount: shorts.length,
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: SizedBox(
                   width: 160,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: ShortsCard(
-                          video: provider.shorts[index],
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ShortsPlayerScreen(
-                                  shorts: provider.shorts,
-                                  initialIndex: index,
-                                ),
-                              ),
-                            );
-                          },
+                  child: ShortsCard(
+                    video: shorts[index],
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ShortsPlayerScreen(
+                            shorts: shorts,
+                            initialIndex: index,
+                          ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               );
             },
           ),
         ),
-        // Bottom divider
-        Container(
-          height: 4,
-          color: AppColors.ytDarkSurface,
-        ),
+        Container(height: 4, color: AppColors.ytDarkSurface),
       ],
     );
   }
