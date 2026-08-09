@@ -1,0 +1,29 @@
+name: Check channels
+
+# Deliberately separate from Build APK and never a gate on it: YouTube
+# throttles datacenter IPs, so a red run here can mean "GitHub's IP is
+# rate-limited" rather than "the channel list is broken". Read the log, don't
+# trust the colour.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'channels.json'
+      - 'tool/check_channels.dart'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Resolve every channel and fetch a few uploads
+        run: dart run tool/check_channels.dart
