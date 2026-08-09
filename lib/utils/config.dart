@@ -5,7 +5,7 @@
 /// rebuilding or reinstalling anything.
 ///
 /// Override at build time without touching the source:
-///   flutter build apk --dart-define=CHANNELS_URL=https://raw.githubusercontent.com/<user>/<repo>/main/channels.json
+///   `flutter build apk --dart-define=CHANNELS_URL=https://raw.githubusercontent.com/USER/REPO/main/channels.json`
 ///
 /// It can also be changed at runtime in the parent dashboard; that value is
 /// stored in the settings table and wins over this default.

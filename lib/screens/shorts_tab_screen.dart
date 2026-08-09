@@ -356,7 +356,7 @@ class _ActionButton extends StatelessWidget {
           Transform(
             alignment: Alignment.center,
             transform: isFlipped
-                ? (Matrix4.identity()..scale(-1.0, 1.0))
+                ? Matrix4.diagonal3Values(-1, 1, 1)
                 : Matrix4.identity(),
             child: Icon(icon, color: Colors.white, size: 28),
           ),
