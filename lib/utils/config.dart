@@ -15,6 +15,14 @@ const String kDefaultRemoteChannelsUrl = String.fromEnvironment(
       'https://raw.githubusercontent.com/OWNER/REPO/main/channels.json',
 );
 
+/// Build identifier, injected by CI as `1.0.<run_number>`. Shown in the parent
+/// dashboard so "which build is actually on the phone" is answerable without
+/// digging through Android settings. Local builds report "dev".
+const String kAppVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: 'dev',
+);
+
 /// Settings keys shared between the provider and the parent dashboard.
 class SettingsKeys {
   static const parentPin = 'parent_pin';

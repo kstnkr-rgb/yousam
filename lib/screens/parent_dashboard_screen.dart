@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
+import '../utils/config.dart';
 import '../utils/constants.dart';
 import 'manage_videos_screen.dart';
 import 'manage_channels_screen.dart';
@@ -17,6 +18,18 @@ class ParentDashboardScreen extends StatelessWidget {
         backgroundColor: AppColors.ytDarkBg,
         title: const Text('Родительский режим',
             style: TextStyle(color: AppColors.white)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(16),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Сборка $kAppVersion',
+                  style: const TextStyle(
+                      color: AppColors.ytGrey, fontSize: 12)),
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.white),
           onPressed: () {
