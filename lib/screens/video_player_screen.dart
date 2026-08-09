@@ -40,15 +40,34 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void dispose() {
     _controller.dispose();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    // Leave the app as we found it: rotation unlocked and the status bar back.
+    // Pinning portraitUp here used to fight the player, and left the whole app
+    // locked to portrait after a fullscreen video.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return YoutubePlayerBuilder(
+      // Forcing landscape here matters when the tablet has auto-rotate off:
+      // without it the fullscreen button would only stretch the player inside
+      // a portrait screen.
+      onEnterFullScreen: () {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      },
+      // Unlock rather than pin to portrait. YoutubePlayerBuilder also fires
+      // this when the device is rotated back, and pinning portraitUp while the
+      // phone is still physically sideways is what made the picture rotate and
+      // immediately snap back.
       onExitFullScreen: () {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       },
       player: YoutubePlayer(
         controller: _controller,
