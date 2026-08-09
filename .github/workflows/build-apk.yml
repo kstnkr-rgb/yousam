@@ -16,6 +16,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Needed to publish the release below; everything else is read-only.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -53,3 +57,20 @@ jobs:
           name: kidtube-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      # Artifacts can only be downloaded by a logged-in GitHub user, which is
+      # useless on a phone. A release asset has an open, permanent URL:
+      #   https://github.com/<owner>/<repo>/releases/latest/download/kidtube.apk
+      # The `latest` tag is deliberately rolling — one release, always current,
+      # so the link in the README never changes.
+      - name: Publish to Releases
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk kidtube.apk
+          notes=$(printf 'Автосборка из коммита %s\n\nПрямая ссылка (вход в GitHub не нужен):\nhttps://github.com/%s/releases/latest/download/kidtube.apk' \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY")
+          gh release create latest --title 'Последняя сборка' --notes "$notes" \
+            || gh release edit latest --notes "$notes"
+          gh release upload latest kidtube.apk --clobber
