@@ -58,8 +58,13 @@ jobs:
         # keeps working without editing lib/utils/config.dart. APP_VERSION is
         # passed in as well so the parent dashboard can show which build is
         # installed without a package-info plugin.
+        #
+        # --split-per-abi produces one APK per processor architecture instead
+        # of a single universal file. Since media_kit added libmpv, a universal
+        # build carries four copies of it and weighs about 98 MB; a per-ABI one
+        # is roughly half that, and every device only ever needs its own.
         run: |
-          flutter build apk --release \
+          flutter build apk --release --split-per-abi \
             --build-name="$APP_VERSION" \
             --build-number="${{ github.run_number }}" \
             --dart-define=APP_VERSION="$APP_VERSION" \
@@ -78,39 +83,43 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: kidtube-apk-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error
 
       # Artifacts can only be downloaded by a logged-in GitHub user, which is
       # useless on a phone. A release asset has an open, permanent URL.
       # The `latest` tag is deliberately rolling — one release, always current.
       #
-      # Two copies of the same APK go up on purpose: the numbered one so it is
-      # obvious which build is in hand, and a fixed-name one so the link in the
-      # README and in phone bookmarks never changes:
-      #   https://github.com/<owner>/<repo>/releases/latest/download/kidtube.apk
+      # kidtube.apk is the 64-bit ARM build under a fixed name: that covers
+      # every phone and tablet made in roughly the last decade, and keeps the
+      # link in the README and in phone bookmarks working forever. The 32-bit
+      # build goes up beside it, named, for anything older.
       - name: Publish to Releases
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          apk=build/app/outputs/flutter-apk/app-release.apk
-          cp "$apk" "kidtube-$APP_VERSION.apk"
-          cp "$apk" kidtube.apk
+          out=build/app/outputs/flutter-apk
+          cp "$out/app-arm64-v8a-release.apk" "kidtube-$APP_VERSION.apk"
+          cp "$out/app-arm64-v8a-release.apk" kidtube.apk
+          cp "$out/app-armeabi-v7a-release.apk" "kidtube-32bit-$APP_VERSION.apk"
 
-          notes=$(printf 'Сборка %s из коммита %s\n\nПрямая ссылка, всегда последняя (вход в GitHub не нужен):\nhttps://github.com/%s/releases/latest/download/kidtube.apk\n\nПеред установкой удалите предыдущую версию: подпись у каждой сборки своя.' \
+          notes=$(printf 'Сборка %s из коммита %s\n\nПрямая ссылка, всегда последняя (вход в GitHub не нужен):\nhttps://github.com/%s/releases/latest/download/kidtube.apk\n\nЭто сборка для 64-битных устройств — подходит всем современным телефонам и планшетам. Для очень старых есть отдельный файл kidtube-32bit.\n\nПеред установкой удалите предыдущую версию: подпись у каждой сборки своя.' \
             "$APP_VERSION" "$GITHUB_SHA" "$GITHUB_REPOSITORY")
 
           gh release create latest --title "Сборка $APP_VERSION" --notes "$notes" \
             || gh release edit latest --title "Сборка $APP_VERSION" --notes "$notes"
 
           # Drop earlier numbered APKs, otherwise the rolling release collects
-          # one per build forever.
+          # a set per build forever.
           gh release view latest --json assets --jq '.assets[].name' \
-            | grep -E '^kidtube-[0-9.]+\.apk$' \
-            | grep -v "^kidtube-$APP_VERSION\.apk$" \
+            | grep -E '^kidtube(-32bit)?-[0-9.]+\.apk$' \
+            | grep -vE "^kidtube(-32bit)?-$APP_VERSION\.apk$" \
             | while read -r stale; do
                 gh release delete-asset latest "$stale" --yes || true
               done
 
-          gh release upload latest "kidtube-$APP_VERSION.apk" kidtube.apk --clobber
+          gh release upload latest \
+            "kidtube-$APP_VERSION.apk" \
+            "kidtube-32bit-$APP_VERSION.apk" \
+            kidtube.apk --clobber
