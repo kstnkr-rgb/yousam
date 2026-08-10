@@ -7,11 +7,13 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/video_item.dart';
 import '../models/channel_item.dart';
 import '../utils/config.dart';
+import 'newpipe_service.dart';
 import 'package:uuid/uuid.dart';
 
 class YouTubeService {
   YoutubeExplode? _yt;
   final Uuid _uuid = const Uuid();
+  final NewPipeService _newPipe = NewPipeService();
 
   YoutubeExplode get yt {
     _yt ??= YoutubeExplode();
@@ -217,47 +219,37 @@ class YouTubeService {
 
   /// Pull a channel's uploads.
   ///
-  /// [stopAtIds] turns this into an incremental refresh: `getUploads` yields
+  /// [stopAtIds] turns this into an incremental refresh: listings come
   /// newest-first, so hitting a video we already stored means everything below
-  /// it is known too and the scan can stop. [scanLimit] is the safety valve for
-  /// the case where nothing matches (e.g. the channel deleted its recent
-  /// uploads) so a "check for new videos" never degrades into a full crawl.
+  /// it is known too and collection can stop there.
   Future<List<VideoItem>> getChannelUploadsById(
     String youtubeChannelId, {
     int limit = kChannelSyncLimit,
     Set<String> stopAtIds = const {},
-    int scanLimit = 0,
     void Function(int fetched)? onProgress,
   }) async {
-    var videos = await _collectUploads(
-      yt.channels.getUploads(ChannelId(youtubeChannelId)),
+    // NewPipeExtractor first: it returns the full archive with durations
+    // already attached, and separates Shorts by channel tab. The Dart
+    // scraper's channel listing has been broken upstream since YouTube moved
+    // to the lockupViewModel layout, so it is no longer even attempted — it
+    // only ever cost two dead requests per channel.
+    final viaNewPipe = await _newPipe.channelVideos(
+      youtubeChannelId,
       limit: limit,
       stopAtIds: stopAtIds,
-      scanLimit: scanLimit,
-      onProgress: onProgress,
     );
-
-    if (videos.isEmpty) {
-      // Both scraped paths currently return nothing: YouTube changed its
-      // response layout and youtube_explode's parser does not recognise it,
-      // failing silently with an empty stream rather than an exception
-      // (upstream issues #380, #381, #383). The Atom feed is a plain public
-      // XML endpoint, unrelated to that parsing, so it keeps working.
-      final uploadsPlaylist = 'UU${youtubeChannelId.substring(2)}';
-      videos = await _collectUploads(
-        yt.playlists.getVideos(PlaylistId(uploadsPlaylist)),
-        limit: limit,
-        stopAtIds: stopAtIds,
-        scanLimit: scanLimit,
-        onProgress: onProgress,
-      );
-
-      if (videos.isEmpty) {
-        developer.log('Scraping returned nothing, falling back to RSS');
-        videos = await getUploadsViaRss(youtubeChannelId, stopAtIds: stopAtIds);
-        onProgress?.call(videos.length);
-      }
+    if (viaNewPipe != null && viaNewPipe.isNotEmpty) {
+      onProgress?.call(viaNewPipe.length);
+      developer.log('Fetched ${viaNewPipe.length} uploads via NewPipe '
+          'for $youtubeChannelId');
+      return viaNewPipe;
     }
+
+    // Atom feed: shallower and without durations, but a plain public endpoint
+    // that keeps working when extraction breaks.
+    developer.log('NewPipe gave nothing, falling back to RSS');
+    final videos = await getUploadsViaRss(youtubeChannelId, stopAtIds: stopAtIds);
+    onProgress?.call(videos.length);
 
     developer.log('Fetched ${videos.length} uploads for $youtubeChannelId');
     return videos;
@@ -375,52 +367,6 @@ class YouTubeService {
       }
     }
     return '';
-  }
-
-  Future<List<VideoItem>> _collectUploads(
-    Stream<Video> source, {
-    required int limit,
-    required Set<String> stopAtIds,
-    required int scanLimit,
-    void Function(int fetched)? onProgress,
-  }) async {
-    final videos = <VideoItem>[];
-    try {
-      var scanned = 0;
-      await for (final video in source) {
-        scanned++;
-        if (stopAtIds.contains(video.id.value)) {
-          developer.log('Reached known video ${video.id.value}, stopping scan');
-          break;
-        }
-
-        final duration = video.duration;
-        videos.add(VideoItem(
-          id: _uuid.v4(),
-          youtubeVideoId: video.id.value,
-          title: video.title,
-          channelName: video.author,
-          channelId: video.channelId.value,
-          thumbnailUrl: video.thumbnails.highResUrl,
-          duration: _formatDuration(duration),
-          viewCount: _formatViewCount(video.engagement.viewCount),
-          publishedAt: video.uploadDate ?? DateTime.now(),
-          isShort: duration != null && duration.inSeconds <= 60,
-        ));
-
-        if (onProgress != null && videos.length % 10 == 0) {
-          onProgress(videos.length);
-        }
-        if (videos.length >= limit) break;
-        if (scanLimit > 0 && scanned >= scanLimit) break;
-      }
-      onProgress?.call(videos.length);
-    } catch (e, stackTrace) {
-      developer.log('Error fetching channel uploads: $e',
-          error: e, stackTrace: stackTrace);
-      // Keep whatever arrived before the failure — a partial sync beats none.
-    }
-    return videos;
   }
 
   Future<List<VideoItem>> getChannelVideos(String channelUrl,

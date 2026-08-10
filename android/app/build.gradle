@@ -13,6 +13,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // NewPipeExtractor uses java.time, which only exists natively from
+        // API 26. Desugaring keeps the app working down to minSdk.
+        coreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -41,4 +44,12 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Reads channel listings straight from YouTube. Used instead of the Dart
+    // scraper, whose channel parsing has been broken upstream since YouTube
+    // switched to the lockupViewModel layout.
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }

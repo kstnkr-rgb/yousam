@@ -255,7 +255,6 @@ class AppProvider extends ChangeNotifier {
       channel.youtubeChannelId,
       limit: topUpOnly ? kIncrementalScanLimit : kChannelSyncLimit,
       stopAtIds: known,
-      scanLimit: topUpOnly ? kIncrementalScanLimit : 0,
       onProgress: (count) {
         _setSyncing(true, 'Загружаем «${channel.name}» — $count видео');
       },
