@@ -48,3 +48,9 @@ app.*.map.json
 # whose channel API had stopped working, and there is no Flutter SDK on the
 # machine this project is maintained from to regenerate it.
 pubspec.lock
+
+# Ключи подписи не должны попасть в публичный репозиторий ни при каких обстоятельствах
+*.p12
+*.jks
+*.keystore
+key.properties
