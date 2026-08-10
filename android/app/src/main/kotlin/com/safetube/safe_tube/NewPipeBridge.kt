@@ -156,9 +156,19 @@ object NewPipeBridge {
         info.videoStreams.forEach { describe(it, false)?.let(video::add) }
         info.videoOnlyStreams.forEach { describe(it, true)?.let(video::add) }
 
+        // YouTube now ships auto-dubbed audio tracks alongside the original.
+        // Picking purely by bitrate landed on whichever dub happened to be
+        // encoded fattest — a Russian channel could end up narrated in Arabic —
+        // so the track type and language have to travel with the stream.
         val audio = info.audioStreams.mapNotNull { stream ->
             urlOf(stream)?.let {
-                mapOf("url" to it, "bitrate" to stream.averageBitrate)
+                mapOf(
+                    "url" to it,
+                    "bitrate" to stream.averageBitrate,
+                    "trackType" to stream.audioTrackType?.name,
+                    "language" to stream.audioLocale?.language,
+                    "trackName" to stream.audioTrackName,
+                )
             }
         }
 

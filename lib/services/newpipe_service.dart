@@ -28,6 +28,28 @@ class VideoStreamOption {
       : (height > 0 ? '${height}p' : 'авто');
 }
 
+/// One audio rendition. [trackType] is NewPipe's AudioTrackType — ORIGINAL,
+/// DUBBED, DESCRIPTIVE or SECONDARY — and empty when the video has a single
+/// track and YouTube says nothing about it.
+class AudioStreamOption {
+  final String url;
+  final int bitrate;
+  final String trackType;
+  final String language;
+  final String trackName;
+
+  const AudioStreamOption({
+    required this.url,
+    required this.bitrate,
+    required this.trackType,
+    required this.language,
+    required this.trackName,
+  });
+
+  String describe() => '${trackType.isEmpty ? 'UNTYPED' : trackType}'
+      '/${language.isEmpty ? '??' : language} ${bitrate}bps';
+}
+
 /// Everything needed to play one video directly, sorted best-first.
 class VideoStreams {
   final List<VideoStreamOption> video;
@@ -112,6 +134,41 @@ class NewPipeService {
     }
   }
 
+  /// Chooses the audio track the video was actually made with.
+  ///
+  /// YouTube attaches machine-translated dubs to a growing number of videos,
+  /// and they arrive in the same list as the real thing. Sorting by bitrate
+  /// alone picked whichever was encoded fattest, which is how a Russian
+  /// channel ended up narrated in Arabic.
+  AudioStreamOption? _pickAudio(List<AudioStreamOption> tracks) {
+    if (tracks.isEmpty) return null;
+
+    // Best bitrate *within* the preferred group, not across all of them.
+    AudioStreamOption? bestOf(bool Function(AudioStreamOption) matches) {
+      AudioStreamOption? best;
+      for (final track in tracks) {
+        if (!matches(track)) continue;
+        if (best == null || track.bitrate > best.bitrate) best = track;
+      }
+      return best;
+    }
+
+    // A track explicitly marked original wins outright.
+    final original = bestOf((t) => t.trackType == 'ORIGINAL');
+    if (original != null) return original;
+
+    // Nothing marked: on videos without dubs the type is simply absent, so an
+    // untyped track is the original by elimination.
+    final untyped = bestOf((t) => t.trackType.isEmpty);
+    if (untyped != null) return untyped;
+
+    // Everything is a dub. Prefer Russian, then English, then give up and take
+    // the loudest — better some audio than none.
+    return bestOf((t) => t.language == 'ru') ??
+        bestOf((t) => t.language == 'en') ??
+        bestOf((_) => true);
+  }
+
   /// Playable stream URLs for one video, or null when extraction failed and
   /// the caller should fall back to the embedded YouTube player.
   Future<VideoStreams?> videoStreams(String youtubeVideoId) async {
@@ -139,24 +196,28 @@ class NewPipeService {
         ));
       }
 
-      String? bestAudio;
-      var bestBitrate = -1;
+      final audio = <AudioStreamOption>[];
       for (final entry in (raw['audio'] as List? ?? const [])) {
         final map = Map<String, dynamic>.from(entry as Map);
         final url = map['url'] as String?;
-        final bitrate = (map['bitrate'] as num?)?.toInt() ?? 0;
-        if (url != null && url.isNotEmpty && bitrate > bestBitrate) {
-          bestAudio = url;
-          bestBitrate = bitrate;
-        }
+        if (url == null || url.isEmpty) continue;
+        audio.add(AudioStreamOption(
+          url: url,
+          bitrate: (map['bitrate'] as num?)?.toInt() ?? 0,
+          trackType: (map['trackType'] as String?) ?? '',
+          language: (map['language'] as String?) ?? '',
+          trackName: (map['trackName'] as String?) ?? '',
+        ));
       }
+
+      final bestAudio = _pickAudio(audio);
 
       if (video.isEmpty) return null;
       video.sort((a, b) => b.height.compareTo(a.height));
 
       developer.log('NewPipe streams for $youtubeVideoId: '
-          '${video.length} video, audio=${bestAudio != null}');
-      return VideoStreams(video: video, audioUrl: bestAudio);
+          '${video.length} video, audio=${bestAudio?.describe()}');
+      return VideoStreams(video: video, audioUrl: bestAudio?.url);
     } on MissingPluginException {
       return null;
     } on PlatformException catch (e) {
