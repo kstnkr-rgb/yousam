@@ -10,7 +10,11 @@ import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
+import org.schabi.newpipe.extractor.stream.DeliveryMethod
+import org.schabi.newpipe.extractor.stream.Stream
+import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.schabi.newpipe.extractor.stream.VideoStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -111,6 +115,59 @@ object NewPipeBridge {
             nextPage = more.nextPage
             if (items.isEmpty()) return
         }
+    }
+
+    /**
+     * Playable stream URLs for one video.
+     *
+     * YouTube only offers a combined video+audio file at low resolutions;
+     * everything above that comes as separate video-only and audio-only
+     * streams which the player has to line up itself. Both kinds are returned
+     * so the caller can decide.
+     */
+    fun videoStreams(videoId: String): Map<String, Any?> {
+        ensureInitialised()
+
+        val info = StreamInfo.getInfo(
+            ServiceList.YouTube,
+            "https://www.youtube.com/watch?v=$videoId",
+        )
+
+        // Only plain HTTP streams are usable directly; anything delivered via
+        // a manifest needs machinery we do not have.
+        fun urlOf(stream: Stream): String? =
+            if (stream.isUrl && stream.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP) {
+                stream.content
+            } else {
+                null
+            }
+
+        fun describe(stream: VideoStream, videoOnly: Boolean): Map<String, Any?>? {
+            val url = urlOf(stream) ?: return null
+            return mapOf(
+                "url" to url,
+                "resolution" to (stream.resolution ?: ""),
+                "height" to stream.height,
+                "videoOnly" to videoOnly,
+            )
+        }
+
+        val video = ArrayList<Map<String, Any?>>()
+        info.videoStreams.forEach { describe(it, false)?.let(video::add) }
+        info.videoOnlyStreams.forEach { describe(it, true)?.let(video::add) }
+
+        val audio = info.audioStreams.mapNotNull { stream ->
+            urlOf(stream)?.let {
+                mapOf("url" to it, "bitrate" to stream.averageBitrate)
+            }
+        }
+
+        return mapOf(
+            "title" to info.name,
+            "durationSeconds" to info.duration,
+            "video" to video,
+            "audio" to audio,
+        )
     }
 
     private fun videoIdOf(url: String?): String? {

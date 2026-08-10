@@ -15,6 +15,13 @@ dependencies:
   http: ^1.2.2
   # Parses the channel Atom feed used as the fallback video source.
   xml: ^6.5.0
+  # Plays the raw stream. Needed instead of the embedded YouTube player
+  # because that one picks the resolution itself and cannot be told otherwise,
+  # and because higher qualities arrive as separate video and audio tracks
+  # that have to be played together.
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
   youtube_player_flutter: ^9.1.1
   # 3.1.0 carries "Fix: channel, playlist, videos apis" — the 2.x line's
   # channel-uploads scraping stopped returning anything against current

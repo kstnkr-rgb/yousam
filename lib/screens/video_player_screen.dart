@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../models/video_item.dart';
 import '../providers/app_provider.dart';
+import '../services/newpipe_service.dart';
 import '../utils/constants.dart';
+import '../widgets/stream_player.dart';
 import '../widgets/video_card.dart';
 
 class VideoPlayerScreen extends StatefulWidget {
@@ -23,9 +25,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   /// Enough to scroll through, few enough to build in one frame.
   static const int _maxSuggestions = 20;
 
-  late YoutubePlayerController _controller;
+  /// Created only if stream extraction fails. Building it up front would spin
+  /// up a web view and start playing YouTube behind the stream player.
+  YoutubePlayerController? _controller;
   final GlobalKey _playerKey = GlobalKey();
   List<VideoItem> _suggested = const [];
+
+  /// Direct stream playback is preferred; the embedded YouTube player stays as
+  /// the fallback for when extraction fails, which it will from time to time.
+  final NewPipeService _newPipe = NewPipeService();
+  VideoStreams? _streams;
+  bool _streamsResolved = false;
+
   bool _titleExpanded = false;
   bool _isFullscreen = false;
   String? _seekHint;
@@ -34,20 +45,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = YoutubePlayerController(
-      initialVideoId: widget.video.youtubeVideoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        disableDragSeek: false,
-        loop: false,
-        // Was true, which forced subtitles on with no way to switch them off:
-        // this player exposes captions as a startup flag only, not as a
-        // control. Off matches what YouTube itself does by default.
-        enableCaption: false,
-        forceHD: false,
-      ),
-    );
+    _loadStreams();
   }
 
   @override
@@ -59,7 +57,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void dispose() {
     _seekHintTimer?.cancel();
-    _controller.dispose();
+    _controller?.dispose();
     _releaseOrientation();
     super.dispose();
   }
@@ -77,17 +75,28 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   /// Double tap left/right to jump ten seconds, the way YouTube behaves.
   void _seekBy(Duration offset) {
-    final position = _controller.value.position + offset;
-    final total = _controller.metadata.duration;
+    final controller = _controller;
+    if (controller == null) return;
+
+    final position = controller.value.position + offset;
+    final total = controller.metadata.duration;
     var target = position < Duration.zero ? Duration.zero : position;
     if (total > Duration.zero && target > total) target = total;
 
-    _controller.seekTo(target);
+    controller.seekTo(target);
     setState(() => _seekHint = offset.isNegative ? '−10 сек' : '+10 сек');
     _seekHintTimer?.cancel();
     _seekHintTimer = Timer(const Duration(milliseconds: 700), () {
       if (mounted) setState(() => _seekHint = null);
     });
+  }
+
+  /// The player plus, for the embedded one only, double-tap seek zones. The
+  /// stream player brings its own gestures and its own controller, so wrapping
+  /// it would seek a player nobody is watching.
+  Widget _playerArea() {
+    final player = _buildPlayer();
+    return _streams == null ? _buildSeekOverlay(player) : player;
   }
 
   Widget _buildSeekOverlay(Widget player) {
@@ -149,11 +158,46 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   ///
   /// The GlobalKey is what lets it move between the column, the side-by-side
   /// row and the fullscreen layout without Flutter tearing down and rebuilding
-  /// the underlying web view — which would restart the video on every rotation.
+  /// it — which would restart the video on every rotation.
   Widget _buildPlayer() {
+    if (!_streamsResolved) {
+      return const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.ytRed),
+          ),
+        ),
+      );
+    }
+
+    final streams = _streams;
+    if (streams != null) {
+      return AspectRatio(
+        aspectRatio: 16 / 9,
+        child: StreamPlayer(
+          key: _playerKey,
+          streams: streams,
+          isFullscreen: _isFullscreen,
+          onToggleFullscreen: _toggleFullscreen,
+        ),
+      );
+    }
+
+    return _buildEmbeddedPlayer();
+  }
+
+  /// YouTube's own player in a web view. Only reached when stream extraction
+  /// failed — it costs us quality control and the captions toggle, but it
+  /// keeps working when extraction breaks.
+  Widget _buildEmbeddedPlayer() {
+    final controller = _controller;
+    if (controller == null) return const SizedBox.shrink();
+
     return YoutubePlayer(
       key: _playerKey,
-      controller: _controller,
+      controller: controller,
       showVideoProgressIndicator: true,
       progressIndicatorColor: AppColors.ytRed,
       progressColors: const ProgressBarColors(
@@ -235,7 +279,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       child: Scaffold(
         backgroundColor: AppColors.ytDarkBg,
         body: _isFullscreen
-            ? Center(child: _buildSeekOverlay(_buildPlayer()))
+            ? Center(child: _playerArea())
             : SafeArea(
                 bottom: false,
                 child: sideBySide
@@ -244,7 +288,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         children: [
                           Expanded(
                             flex: 7,
-                            child: _buildSeekOverlay(_buildPlayer()),
+                            child: _playerArea(),
                           ),
                           Expanded(
                             flex: 3,
@@ -254,7 +298,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       )
                     : Column(
                         children: [
-                          _buildSeekOverlay(_buildPlayer()),
+                          _playerArea(),
                           Expanded(child: _buildDetails()),
                         ],
                       ),
@@ -477,6 +521,35 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _loadStreams() async {
+    final streams = await _newPipe.videoStreams(widget.video.youtubeVideoId);
+    if (!mounted) return;
+
+    final usable =
+        (streams != null && streams.playable.isNotEmpty) ? streams : null;
+
+    setState(() {
+      _streams = usable;
+      _streamsResolved = true;
+      if (usable == null) {
+        _controller = YoutubePlayerController(
+          initialVideoId: widget.video.youtubeVideoId,
+          flags: const YoutubePlayerFlags(
+            autoPlay: true,
+            mute: false,
+            disableDragSeek: false,
+            loop: false,
+            // Was true, which forced subtitles on with no way to switch them
+            // off: this player exposes captions as a startup flag only, not as
+            // a control. Off matches what YouTube itself does by default.
+            enableCaption: false,
+            forceHD: false,
+          ),
+        );
+      }
+    });
   }
 
   /// Builds the suggestion list once, when the screen opens.

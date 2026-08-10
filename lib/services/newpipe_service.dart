@@ -6,6 +6,41 @@ import 'package:uuid/uuid.dart';
 
 import '../models/video_item.dart';
 
+/// One playable video rendition.
+class VideoStreamOption {
+  final String url;
+  final String resolution;
+  final int height;
+
+  /// True when the stream carries no audio and must be paired with a separate
+  /// audio track. YouTube only muxes the two at low resolutions.
+  final bool videoOnly;
+
+  const VideoStreamOption({
+    required this.url,
+    required this.resolution,
+    required this.height,
+    required this.videoOnly,
+  });
+
+  String get label => resolution.isNotEmpty
+      ? resolution
+      : (height > 0 ? '${height}p' : 'авто');
+}
+
+/// Everything needed to play one video directly, sorted best-first.
+class VideoStreams {
+  final List<VideoStreamOption> video;
+  final String? audioUrl;
+
+  const VideoStreams({required this.video, this.audioUrl});
+
+  /// Video-only renditions are unusable without a separate audio track.
+  List<VideoStreamOption> get playable => audioUrl == null
+      ? video.where((v) => !v.videoOnly).toList()
+      : video;
+}
+
 /// Channel listings via NewPipeExtractor, running on the Android side.
 ///
 /// This is the primary source. It reports the whole archive with durations and
@@ -73,6 +108,62 @@ class NewPipeService {
       return null;
     } catch (e) {
       developer.log('NewPipe call failed for $youtubeChannelId: $e');
+      return null;
+    }
+  }
+
+  /// Playable stream URLs for one video, or null when extraction failed and
+  /// the caller should fall back to the embedded YouTube player.
+  Future<VideoStreams?> videoStreams(String youtubeVideoId) async {
+    if (!isAvailable) return null;
+
+    try {
+      final raw = await _channel.invokeMapMethod<String, dynamic>(
+          'videoStreams', {'videoId': youtubeVideoId});
+      if (raw == null) return null;
+
+      final video = <VideoStreamOption>[];
+      for (final entry in (raw['video'] as List? ?? const [])) {
+        final map = Map<String, dynamic>.from(entry as Map);
+        final url = map['url'] as String?;
+        if (url == null || url.isEmpty) continue;
+        final resolution = (map['resolution'] as String?) ?? '';
+        video.add(VideoStreamOption(
+          url: url,
+          resolution: resolution,
+          // Some streams report no height; the label carries it instead.
+          height: (map['height'] as num?)?.toInt() ??
+              int.tryParse(RegExp(r'(\d+)').firstMatch(resolution)?.group(1) ?? '') ??
+              0,
+          videoOnly: (map['videoOnly'] as bool?) ?? false,
+        ));
+      }
+
+      String? bestAudio;
+      var bestBitrate = -1;
+      for (final entry in (raw['audio'] as List? ?? const [])) {
+        final map = Map<String, dynamic>.from(entry as Map);
+        final url = map['url'] as String?;
+        final bitrate = (map['bitrate'] as num?)?.toInt() ?? 0;
+        if (url != null && url.isNotEmpty && bitrate > bestBitrate) {
+          bestAudio = url;
+          bestBitrate = bitrate;
+        }
+      }
+
+      if (video.isEmpty) return null;
+      video.sort((a, b) => b.height.compareTo(a.height));
+
+      developer.log('NewPipe streams for $youtubeVideoId: '
+          '${video.length} video, audio=${bestAudio != null}');
+      return VideoStreams(video: video, audioUrl: bestAudio);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      developer.log('Stream extraction failed for $youtubeVideoId: ${e.message}');
+      return null;
+    } catch (e) {
+      developer.log('Stream extraction failed for $youtubeVideoId: $e');
       return null;
     }
   }

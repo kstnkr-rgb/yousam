@@ -47,6 +47,28 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    "videoStreams" -> {
+                        val videoId = call.argument<String>("videoId")
+                        if (videoId.isNullOrEmpty()) {
+                            result.error("no_video_id", "videoId is required", null)
+                            return@setMethodCallHandler
+                        }
+                        worker.execute {
+                            try {
+                                val streams = NewPipeBridge.videoStreams(videoId)
+                                main.post { result.success(streams) }
+                            } catch (e: Throwable) {
+                                main.post {
+                                    result.error(
+                                        "extract_failed",
+                                        e.message ?: e.javaClass.simpleName,
+                                        null,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
