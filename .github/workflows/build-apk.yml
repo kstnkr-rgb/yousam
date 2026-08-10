@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Generate launcher icons
+        run: dart run flutter_launcher_icons
+
       - name: Analyze
         # Errors and warnings still fail the build; info-level lints do not.
         # A future Flutter release deprecating some API must not stand between

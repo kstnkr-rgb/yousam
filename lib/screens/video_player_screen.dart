@@ -21,7 +21,9 @@ class VideoPlayerScreen extends StatefulWidget {
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late YoutubePlayerController _controller;
+  final GlobalKey _playerKey = GlobalKey();
   bool _titleExpanded = false;
+  bool _isFullscreen = false;
   String? _seekHint;
   Timer? _seekHintTimer;
 
@@ -61,9 +63,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   /// Double tap left/right to jump ten seconds, the way YouTube behaves.
-  ///
-  /// Only active in the inline layout: in fullscreen the player package
-  /// renders its own widget and there is nothing of ours left to wrap.
   void _seekBy(Duration offset) {
     final position = _controller.value.position + offset;
     final total = _controller.metadata.duration;
@@ -123,71 +122,121 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
+  /// The player widget itself, kept identical across every layout.
+  ///
+  /// The GlobalKey is what lets it move between the column, the side-by-side
+  /// row and the fullscreen layout without Flutter tearing down and rebuilding
+  /// the underlying web view — which would restart the video on every rotation.
+  Widget _buildPlayer() {
+    return YoutubePlayer(
+      key: _playerKey,
+      controller: _controller,
+      showVideoProgressIndicator: true,
+      progressIndicatorColor: AppColors.ytRed,
+      progressColors: const ProgressBarColors(
+        playedColor: AppColors.ytRed,
+        handleColor: AppColors.ytRed,
+        bufferedColor: Color(0x55FFFFFF),
+        backgroundColor: Color(0x33FFFFFF),
+      ),
+      bottomActions: [
+        const SizedBox(width: 8),
+        CurrentPosition(),
+        const SizedBox(width: 8),
+        ProgressBar(
+          isExpanded: true,
+          colors: const ProgressBarColors(
+            playedColor: AppColors.ytRed,
+            handleColor: AppColors.ytRed,
+            bufferedColor: Color(0x55FFFFFF),
+            backgroundColor: Color(0x33FFFFFF),
+          ),
+        ),
+        const SizedBox(width: 8),
+        RemainingDuration(),
+        // Our own button instead of the package's FullScreenButton: that one
+        // toggles orientation, which is the behaviour we are deliberately
+        // getting away from.
+        IconButton(
+          icon: Icon(
+            _isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+            color: AppColors.white,
+          ),
+          onPressed: _toggleFullscreen,
+        ),
+      ],
+    );
+  }
+
+  void _toggleFullscreen() {
+    setState(() => _isFullscreen = !_isFullscreen);
+    if (_isFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
+  Widget _buildDetails() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTitleSection(),
+          const Divider(height: 0.5),
+          _buildChannelSection(),
+          const Divider(height: 0.5),
+          _buildActionButtons(),
+          const Divider(height: 0.5),
+          _buildCommentsPreview(),
+          const Divider(height: 0.5),
+          _buildSuggestedVideos(),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayerBuilder(
-      // Both directions are driven explicitly. Leaving either to
-      // DeviceOrientation.values means the app keeps whatever orientation the
-      // device happens to be held in — which is precisely why the exit button
-      // appeared dead on the tablet: unlocking while it lay sideways left the
-      // app in landscape, and landscape is what this player calls fullscreen.
-      onEnterFullScreen: () {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    final size = MediaQuery.sizeOf(context);
+    // Side by side once the screen is both wide and wider than it is tall —
+    // a phone in landscape is too short to give the video a useful height.
+    final sideBySide = size.width >= 840 && size.width > size.height;
+
+    return PopScope(
+      // Back should leave fullscreen first, not the video.
+      canPop: !_isFullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isFullscreen) _toggleFullscreen();
       },
-      onExitFullScreen: _releaseOrientation,
-      player: YoutubePlayer(
-        controller: _controller,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: AppColors.ytRed,
-        progressColors: const ProgressBarColors(
-          playedColor: AppColors.ytRed,
-          handleColor: AppColors.ytRed,
-          bufferedColor: Color(0x55FFFFFF),
-          backgroundColor: Color(0x33FFFFFF),
-        ),
+      child: Scaffold(
+        backgroundColor: AppColors.ytDarkBg,
+        body: _isFullscreen
+            ? Center(child: _buildSeekOverlay(_buildPlayer()))
+            : SafeArea(
+                bottom: false,
+                child: sideBySide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 7,
+                            child: _buildSeekOverlay(_buildPlayer()),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: _buildDetails(),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          _buildSeekOverlay(_buildPlayer()),
+                          Expanded(child: _buildDetails()),
+                        ],
+                      ),
+              ),
       ),
-      builder: (context, player) {
-        return Scaffold(
-          backgroundColor: AppColors.ytDarkBg,
-          body: SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                // Player
-                _buildSeekOverlay(player),
-                // Scrollable content below player
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title section (tappable to expand, like YouTube)
-                        _buildTitleSection(),
-                        const Divider(height: 0.5),
-                        // Channel section
-                        _buildChannelSection(),
-                        const Divider(height: 0.5),
-                        // Action buttons
-                        _buildActionButtons(),
-                        const Divider(height: 0.5),
-                        // Comments preview
-                        _buildCommentsPreview(),
-                        const Divider(height: 0.5),
-                        // Suggested videos
-                        _buildSuggestedVideos(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
