@@ -21,13 +21,17 @@ class _MainShellState extends State<MainShell> {
 
   static const _searchTabIndex = 2;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    ShortsTabScreen(),
-    SizedBox(), // search opens as its own route, never as a tab body
-    SubscriptionsScreen(),
-    LibraryScreen(),
-  ];
+  // IndexedStack keeps every tab alive, which is what preserves scroll
+  // position — but it also builds the Shorts tab at launch. That tab used to
+  // start playing behind the home feed: audio with nothing on screen to stop
+  // it. It now gets told whether it is the visible tab.
+  List<Widget> get _screens => [
+        const HomeScreen(),
+        ShortsTabScreen(isActive: _currentIndex == 1),
+        const SizedBox(), // search opens as its own route, never as a tab body
+        const SubscriptionsScreen(),
+        const LibraryScreen(),
+      ];
 
   void _onTabTapped(int index) {
     if (index == _searchTabIndex) {

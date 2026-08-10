@@ -13,12 +13,6 @@ void main() async {
   timeago.setLocaleMessages('ru', timeago.RuMessages());
   timeago.setDefaultLocale('ru');
 
-  // Portrait everywhere except fullscreen video. In this player version
-  // "fullscreen" *is* landscape orientation, so leaving the app free to rotate
-  // made the two fight: the picture flipped and snapped back, and the exit
-  // button did nothing while the device was physically sideways.
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,

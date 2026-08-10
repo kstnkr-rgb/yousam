@@ -7,14 +7,18 @@ import '../models/video_item.dart';
 import '../utils/constants.dart';
 
 class ShortsTabScreen extends StatefulWidget {
-  const ShortsTabScreen({super.key});
+  /// Whether this is the tab currently on screen. The shell keeps every tab
+  /// alive, so without this the player has no way of knowing it is hidden.
+  final bool isActive;
+
+  const ShortsTabScreen({super.key, this.isActive = true});
 
   @override
   State<ShortsTabScreen> createState() => _ShortsTabScreenState();
 }
 
 class _ShortsTabScreenState extends State<ShortsTabScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   late PageController _pageController;
   int _currentPage = 0;
   final Map<int, YoutubePlayerController> _controllers = {};
@@ -26,6 +30,31 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
   void initState() {
     super.initState();
     _pageController = PageController();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant ShortsTabScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive == widget.isActive) return;
+    if (widget.isActive) {
+      _controllers[_currentPage]?.play();
+    } else {
+      _pauseAll();
+    }
+  }
+
+  /// Switching away from the app must not leave a Short talking in the
+  /// background.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _pauseAll();
+  }
+
+  void _pauseAll() {
+    for (final controller in _controllers.values) {
+      controller.pause();
+    }
   }
 
   YoutubePlayerController _getController(VideoItem video, int index) {
@@ -48,11 +77,12 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
   void _onPageChanged(int index) {
     _controllers[_currentPage]?.pause();
     setState(() => _currentPage = index);
-    _controllers[index]?.play();
+    if (widget.isActive) _controllers[index]?.play();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -102,7 +132,7 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
               return _ShortsPage(
                 video: video,
                 controller: _getController(video, index),
-                isActive: index == _currentPage,
+                isActive: index == _currentPage && widget.isActive,
               );
             },
           ),
@@ -112,7 +142,7 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
   }
 }
 
-class _ShortsPage extends StatelessWidget {
+class _ShortsPage extends StatefulWidget {
   final VideoItem video;
   final YoutubePlayerController controller;
   final bool isActive;
@@ -124,12 +154,38 @@ class _ShortsPage extends StatelessWidget {
   });
 
   @override
+  State<_ShortsPage> createState() => _ShortsPageState();
+}
+
+class _ShortsPageState extends State<_ShortsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _applyPlayback();
+  }
+
+  /// Playback is driven by changes in [isActive] only.
+  ///
+  /// This used to live in build(), so every rebuild resumed the video — and
+  /// rebuilds are frequent while channels sync. That is why pausing a Short
+  /// never stuck: it restarted on the next frame.
+  @override
+  void didUpdateWidget(covariant _ShortsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) _applyPlayback();
+  }
+
+  void _applyPlayback() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.isActive ? widget.controller.play() : widget.controller.pause();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (isActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller.play();
-      });
-    }
+    final video = widget.video;
+    final controller = widget.controller;
 
     return Stack(
       fit: StackFit.expand,

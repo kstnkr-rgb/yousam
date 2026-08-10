@@ -28,6 +28,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    // Portrait is locked for this screen only, not app-wide: in this player
+    // version landscape *is* fullscreen, so a tablet held sideways would show
+    // the video permanently expanded with no description or suggestions — and
+    // the exit button would have nothing to exit to. Locking the whole app
+    // instead letterboxed every other screen on the tablet.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
     _controller = YoutubePlayerController(
       initialVideoId: widget.video.youtubeVideoId,
       flags: const YoutubePlayerFlags(
@@ -45,12 +52,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   void dispose() {
     _seekHintTimer?.cancel();
     _controller.dispose();
-    _restorePortrait();
+    _releaseOrientation();
     super.dispose();
   }
 
   void _restorePortrait() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  /// Hand rotation back to the rest of the app when the video screen closes.
+  void _releaseOrientation() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
