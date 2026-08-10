@@ -20,8 +20,12 @@ class VideoPlayerScreen extends StatefulWidget {
 }
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
+  /// Enough to scroll through, few enough to build in one frame.
+  static const int _maxSuggestions = 20;
+
   late YoutubePlayerController _controller;
   final GlobalKey _playerKey = GlobalKey();
+  List<VideoItem> _suggested = const [];
   bool _titleExpanded = false;
   bool _isFullscreen = false;
   String? _seekHint;
@@ -41,6 +45,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         forceHD: false,
       ),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_suggested.isEmpty) _prepareSuggestions();
   }
 
   @override
@@ -456,57 +466,66 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     );
   }
 
+  /// Builds the suggestion list once, when the screen opens.
+  ///
+  /// It used to sit in a Consumer and render every stored video into a Column.
+  /// That was survivable with a few dozen videos in the database; once the
+  /// library grew to thousands, opening a video meant constructing thousands
+  /// of cards — each with a network image — in a single frame, on top of a
+  /// rebuild for every provider notification. Playback stuttered because the
+  /// UI thread never got a break, not because of the player.
+  void _prepareSuggestions() {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+
+    // regularVideos is already restricted to allowed channels, so nothing
+    // outside the parent's list can appear here. Same channel first — that is
+    // what "more like this" means to a kid.
+    final sameChannel = <VideoItem>[];
+    final others = <VideoItem>[];
+    for (final video in provider.regularVideos) {
+      if (video.youtubeVideoId == widget.video.youtubeVideoId) continue;
+      if (video.channelId == widget.video.channelId) {
+        sameChannel.add(video);
+      } else if (others.length < _maxSuggestions) {
+        others.add(video);
+      }
+      if (sameChannel.length >= _maxSuggestions) break;
+    }
+
+    _suggested = [...sameChannel, ...others].take(_maxSuggestions).toList();
+  }
+
   Widget _buildSuggestedVideos() {
-    return Consumer<AppProvider>(
-      builder: (context, provider, child) {
-        // provider.regularVideos is already restricted to allowed channels, so
-        // nothing outside the parent's list can appear here. Ordering puts the
-        // current channel first, which is what "more like this" means to a kid.
-        final pool = provider.regularVideos
-            .where((v) => v.youtubeVideoId != widget.video.youtubeVideoId)
-            .toList();
+    if (_suggested.isEmpty) return const SizedBox.shrink();
 
-        final sameChannel = pool
-            .where((v) => v.channelId == widget.video.channelId)
-            .toList();
-        final others = pool
-            .where((v) => v.channelId != widget.video.channelId)
-            .toList();
-        final suggested = [...sameChannel, ...others];
-
-        if (suggested.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
-              child: Text(
-                'Похожие видео',
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
+          child: Text(
+            'Похожие видео',
+            style: TextStyle(
+              color: AppColors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
-            ...suggested.map((video) => VideoCard(
-                  video: video,
-                  compact: true,
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            VideoPlayerScreen(video: video),
-                      ),
-                    );
-                  },
-                )),
-            const SizedBox(height: 24),
-          ],
-        );
-      },
+          ),
+        ),
+        ..._suggested.map((video) => VideoCard(
+              video: video,
+              compact: true,
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VideoPlayerScreen(video: video),
+                  ),
+                );
+              },
+            )),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }
