@@ -93,16 +93,26 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       children: [
         player,
         // translucent so single taps still reach the player's own controls
+        // Seek zones sit on the sides only. A double-tap recogniser has to
+        // wait out the double-tap interval before releasing a single tap, so
+        // anywhere it overlaps a button that button feels sluggish or misses
+        // the press entirely — which is why the play/pause icon could be left
+        // showing the wrong state. The middle column and the bottom control
+        // bar are deliberately left uncovered, the same split YouTube uses.
         Positioned.fill(
+          bottom: 56,
           child: Row(
             children: [
               Expanded(
+                flex: 35,
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onDoubleTap: () => _seekBy(const Duration(seconds: -10)),
                 ),
               ),
+              const Expanded(flex: 30, child: SizedBox.expand()),
               Expanded(
+                flex: 35,
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onDoubleTap: () => _seekBy(const Duration(seconds: 10)),
