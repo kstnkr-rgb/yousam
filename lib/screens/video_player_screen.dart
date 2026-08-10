@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import '../models/video_item.dart';
 import '../providers/app_provider.dart';
 import '../services/newpipe_service.dart';
+import '../utils/config.dart';
 import '../utils/constants.dart';
 import '../widgets/stream_player.dart';
 import '../widgets/video_card.dart';
@@ -527,8 +529,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     final streams = await _newPipe.videoStreams(widget.video.youtubeVideoId);
     if (!mounted) return;
 
-    final usable =
-        (streams != null && streams.playable.isNotEmpty) ? streams : null;
+    // playable is sorted best-first, so its head is the ceiling on offer.
+    final best = (streams == null || streams.playable.isEmpty)
+        ? 0
+        : streams.playable.first.height;
+    final usable = best >= kMinDirectStreamHeight ? streams : null;
+
+    if (streams != null && usable == null) {
+      developer.log('Direct streams top out at ${best}p — using the embedded '
+          'player instead: ${streams.diagnostics}');
+    }
 
     setState(() {
       _streams = usable;
