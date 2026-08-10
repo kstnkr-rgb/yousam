@@ -1,6 +1,7 @@
 package com.safetube.safe_tube
 
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.channel.ChannelInfo
 import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo
@@ -95,8 +96,7 @@ object NewPipeBridge {
                         "channelId" to channelId,
                         "durationSeconds" to item.duration,
                         "viewCount" to item.viewCount,
-                        "uploadedAtMillis" to item.uploadDate?.offsetDateTime()
-                            ?.toInstant()?.toEpochMilli(),
+                        "uploadedAtMillis" to item.uploadDate?.instant?.toEpochMilli(),
                         "isShort" to isShort,
                     )
                 )
@@ -104,8 +104,9 @@ object NewPipeBridge {
                 if (taken >= limit) return
             }
 
-            if (nextPage == null || !nextPage.hasContent()) return
-            val more = ChannelTabInfo.getMoreItems(service, handler, nextPage)
+            val current = nextPage ?: return
+            if (!Page.isValid(current)) return
+            val more = ChannelTabInfo.getMoreItems(service, handler, current)
             items = more.items
             nextPage = more.nextPage
             if (items.isEmpty()) return
