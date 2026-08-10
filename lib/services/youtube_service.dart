@@ -272,6 +272,7 @@ class YouTubeService {
   Future<List<VideoItem>> getUploadsViaRss(
     String youtubeChannelId, {
     Set<String> stopAtIds = const {},
+    int limit = kFeedVideoLimit,
   }) async {
     final uri = Uri.parse(
         'https://www.youtube.com/feeds/videos.xml?channel_id=$youtubeChannelId');
@@ -288,6 +289,7 @@ class YouTubeService {
       final author = _firstText(feed.rootElement, 'name');
 
       for (final entry in feed.findAllElements('entry')) {
+        if (videos.length >= limit) break;
         final videoId = _firstText(entry, 'videoId');
         if (videoId.isEmpty || stopAtIds.contains(videoId)) continue;
 

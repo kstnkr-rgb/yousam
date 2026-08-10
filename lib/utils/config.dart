@@ -40,3 +40,13 @@ const int kChannelSyncLimit = 200;
 /// Safety valve for incremental re-syncs: stop scanning after this many
 /// uploads even if no known video turned up.
 const int kIncrementalScanLimit = 60;
+
+/// How many videos to take from a channel's Atom feed.
+///
+/// The feed itself holds 15, but each one then costs a separate request to
+/// learn its duration — a full watch-page fetch — and that is what makes a
+/// first sync drag: 20 channels turned into ~300 of them.
+///
+/// Temporarily lowered to 2 for testing. Raise it back towards 15 once the
+/// timing is understood.
+const int kFeedVideoLimit = 2;

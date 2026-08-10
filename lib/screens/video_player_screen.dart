@@ -28,13 +28,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // Portrait is locked for this screen only, not app-wide: in this player
-    // version landscape *is* fullscreen, so a tablet held sideways would show
-    // the video permanently expanded with no description or suggestions — and
-    // the exit button would have nothing to exit to. Locking the whole app
-    // instead letterboxed every other screen on the tablet.
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
     _controller = YoutubePlayerController(
       initialVideoId: widget.video.youtubeVideoId,
       flags: const YoutubePlayerFlags(
@@ -56,12 +49,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     super.dispose();
   }
 
-  void _restorePortrait() {
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  }
-
-  /// Hand rotation back to the rest of the app when the video screen closes.
+  /// Stop dictating an orientation and put the system bars back.
+  ///
+  /// Every attempt to pin one made things worse somewhere: app-wide it
+  /// letterboxed the tablet, screen-wide it letterboxed the video page. This
+  /// player treats landscape as fullscreen, so the device's own orientation
+  /// has to stay in charge.
   void _releaseOrientation() {
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -145,7 +138,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         ]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       },
-      onExitFullScreen: _restorePortrait,
+      onExitFullScreen: _releaseOrientation,
       player: YoutubePlayer(
         controller: _controller,
         showVideoProgressIndicator: true,
