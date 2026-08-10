@@ -310,11 +310,50 @@ class YouTubeService {
         ));
       }
       developer.log('RSS $youtubeChannelId: ${videos.length} videos');
+      return _withDurations(videos);
     } catch (e, stackTrace) {
       developer.log('RSS failed for $youtubeChannelId: $e',
           error: e, stackTrace: stackTrace);
     }
     return videos;
+  }
+
+  /// Fills in duration for videos that came from the feed.
+  ///
+  /// The feed carries no duration, and without it a Short is
+  /// indistinguishable from a normal video — the Shorts tab stayed empty and
+  /// no card showed a length badge. Single-video lookups still work even
+  /// though the channel-listing API does not, so each entry is topped up
+  /// individually. A few at a time: this runs for every new video, and
+  /// hammering YouTube earns a rate limit.
+  Future<List<VideoItem>> _withDurations(List<VideoItem> videos) async {
+    const concurrency = 6;
+    final filled = List<VideoItem>.from(videos);
+    var next = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= filled.length) return;
+        try {
+          final video =
+              await yt.videos.get(VideoId(filled[index].youtubeVideoId));
+          final duration = video.duration;
+          filled[index] = filled[index].copyWith(
+            duration: _formatDuration(duration),
+            isShort: duration != null && duration.inSeconds <= 60,
+            viewCount: _formatViewCount(video.engagement.viewCount),
+          );
+        } catch (e) {
+          // Keep the feed version: a missing badge beats a missing video.
+          developer.log('Duration lookup failed for '
+              '${filled[index].youtubeVideoId}: $e');
+        }
+      }
+    }
+
+    await Future.wait(List.generate(concurrency, (_) => worker()));
+    return filled;
   }
 
   /// Namespace-agnostic lookup: the feed mixes the Atom, `yt:` and `media:`

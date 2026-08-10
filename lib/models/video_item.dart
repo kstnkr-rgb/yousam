@@ -38,7 +38,13 @@ class VideoItem {
   /// lowercase query.
   String get searchText => '$title $channelName'.toLowerCase();
 
-  VideoItem copyWith({bool? isManual, bool? isApproved}) {
+  VideoItem copyWith({
+    bool? isManual,
+    bool? isApproved,
+    String? duration,
+    String? viewCount,
+    bool? isShort,
+  }) {
     return VideoItem(
       id: id,
       youtubeVideoId: youtubeVideoId,
@@ -47,10 +53,10 @@ class VideoItem {
       channelId: channelId,
       thumbnailUrl: thumbnailUrl,
       channelAvatarUrl: channelAvatarUrl,
-      duration: duration,
-      viewCount: viewCount,
+      duration: duration ?? this.duration,
+      viewCount: viewCount ?? this.viewCount,
       publishedAt: publishedAt,
-      isShort: isShort,
+      isShort: isShort ?? this.isShort,
       isApproved: isApproved ?? this.isApproved,
       isManual: isManual ?? this.isManual,
     );

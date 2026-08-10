@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -20,6 +22,8 @@ class VideoPlayerScreen extends StatefulWidget {
 class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   late YoutubePlayerController _controller;
   bool _titleExpanded = false;
+  String? _seekHint;
+  Timer? _seekHintTimer;
 
   @override
   void initState() {
@@ -39,21 +43,88 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   void dispose() {
+    _seekHintTimer?.cancel();
     _controller.dispose();
-    // Leave the app as we found it: rotation unlocked and the status bar back.
-    // Pinning portraitUp here used to fight the player, and left the whole app
-    // locked to portrait after a fullscreen video.
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _restorePortrait();
     super.dispose();
+  }
+
+  void _restorePortrait() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  /// Double tap left/right to jump ten seconds, the way YouTube behaves.
+  ///
+  /// Only active in the inline layout: in fullscreen the player package
+  /// renders its own widget and there is nothing of ours left to wrap.
+  void _seekBy(Duration offset) {
+    final position = _controller.value.position + offset;
+    final total = _controller.metadata.duration;
+    var target = position < Duration.zero ? Duration.zero : position;
+    if (total > Duration.zero && target > total) target = total;
+
+    _controller.seekTo(target);
+    setState(() => _seekHint = offset.isNegative ? '−10 сек' : '+10 сек');
+    _seekHintTimer?.cancel();
+    _seekHintTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _seekHint = null);
+    });
+  }
+
+  Widget _buildSeekOverlay(Widget player) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        player,
+        // translucent so single taps still reach the player's own controls
+        Positioned.fill(
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onDoubleTap: () => _seekBy(const Duration(seconds: -10)),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onDoubleTap: () => _seekBy(const Duration(seconds: 10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_seekHint != null)
+          IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _seekHint!,
+                style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return YoutubePlayerBuilder(
-      // Forcing landscape here matters when the tablet has auto-rotate off:
-      // without it the fullscreen button would only stretch the player inside
-      // a portrait screen.
+      // Both directions are driven explicitly. Leaving either to
+      // DeviceOrientation.values means the app keeps whatever orientation the
+      // device happens to be held in — which is precisely why the exit button
+      // appeared dead on the tablet: unlocking while it lay sideways left the
+      // app in landscape, and landscape is what this player calls fullscreen.
       onEnterFullScreen: () {
         SystemChrome.setPreferredOrientations([
           DeviceOrientation.landscapeLeft,
@@ -61,14 +132,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         ]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       },
-      // Unlock rather than pin to portrait. YoutubePlayerBuilder also fires
-      // this when the device is rotated back, and pinning portraitUp while the
-      // phone is still physically sideways is what made the picture rotate and
-      // immediately snap back.
-      onExitFullScreen: () {
-        SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      },
+      onExitFullScreen: _restorePortrait,
       player: YoutubePlayer(
         controller: _controller,
         showVideoProgressIndicator: true,
@@ -88,7 +152,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             child: Column(
               children: [
                 // Player
-                player,
+                _buildSeekOverlay(player),
                 // Scrollable content below player
                 Expanded(
                   child: SingleChildScrollView(
