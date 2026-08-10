@@ -172,11 +172,25 @@ object NewPipeBridge {
             }
         }
 
+        // Counts before and after filtering. When a video offers nothing above
+        // 360p there is no way to tell from the outside whether YouTube served
+        // no adaptive streams at all, or served them in a form we reject — and
+        // the two need different fixes.
+        val diagnostics = mapOf(
+            "rawMuxed" to info.videoStreams.size,
+            "rawVideoOnly" to info.videoOnlyStreams.size,
+            "rawAudio" to info.audioStreams.size,
+            "usableMuxed" to video.count { it["videoOnly"] == false },
+            "usableVideoOnly" to video.count { it["videoOnly"] == true },
+            "usableAudio" to audio.size,
+        )
+
         return mapOf(
             "title" to info.name,
             "durationSeconds" to info.duration,
             "video" to video,
             "audio" to audio,
+            "diagnostics" to diagnostics,
         )
     }
 

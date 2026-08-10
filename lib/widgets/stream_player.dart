@@ -98,6 +98,17 @@ class _StreamPlayerState extends State<StreamPlayer> {
                   _open(option);
                 },
               ),
+            // Only worth reading when the list looks too short; harmless
+            // otherwise.
+            if (widget.streams.diagnostics.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  'Найдено потоков: ${widget.streams.diagnostics}',
+                  style: const TextStyle(
+                      color: AppColors.ytLightGrey, fontSize: 11),
+                ),
+              ),
           ],
         ),
       ),

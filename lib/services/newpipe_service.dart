@@ -55,7 +55,16 @@ class VideoStreams {
   final List<VideoStreamOption> video;
   final String? audioUrl;
 
-  const VideoStreams({required this.video, this.audioUrl});
+  /// What extraction actually found, for when the quality list comes back
+  /// shorter than expected. Shown in the quality sheet because the alternative
+  /// is reading a device log.
+  final String diagnostics;
+
+  const VideoStreams({
+    required this.video,
+    this.audioUrl,
+    this.diagnostics = '',
+  });
 
   /// Video-only renditions are unusable without a separate audio track.
   List<VideoStreamOption> get playable => audioUrl == null
@@ -215,9 +224,21 @@ class NewPipeService {
       if (video.isEmpty) return null;
       video.sort((a, b) => b.height.compareTo(a.height));
 
-      developer.log('NewPipe streams for $youtubeVideoId: '
-          '${video.length} video, audio=${bestAudio?.describe()}');
-      return VideoStreams(video: video, audioUrl: bestAudio?.url);
+      final d = Map<String, dynamic>.from(
+          (raw['diagnostics'] as Map?) ?? const <String, dynamic>{});
+      final diagnostics = 'совмещённых ${d['usableMuxed'] ?? '?'}'
+          '/${d['rawMuxed'] ?? '?'}, '
+          'раздельных ${d['usableVideoOnly'] ?? '?'}'
+          '/${d['rawVideoOnly'] ?? '?'}, '
+          'звук ${d['usableAudio'] ?? '?'}/${d['rawAudio'] ?? '?'}';
+
+      developer.log('NewPipe streams for $youtubeVideoId: $diagnostics, '
+          'audio=${bestAudio?.describe()}');
+      return VideoStreams(
+        video: video,
+        audioUrl: bestAudio?.url,
+        diagnostics: diagnostics,
+      );
     } on MissingPluginException {
       return null;
     } on PlatformException catch (e) {
