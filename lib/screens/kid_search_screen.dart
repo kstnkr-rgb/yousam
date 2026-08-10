@@ -8,7 +8,7 @@ import '../models/channel_item.dart';
 import '../models/video_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/constants.dart';
-import '../widgets/video_card.dart';
+import '../widgets/video_feed_sliver.dart';
 import 'video_player_screen.dart';
 
 /// The child's search.
@@ -194,12 +194,8 @@ class _KidSearchScreenState extends State<KidSearchScreen> {
       return _buildEmpty();
     }
 
-    return ListView.builder(
-      itemCount: _results.length,
-      itemBuilder: (context, index) {
-        final video = _results[index];
-        return VideoCard(video: video, onTap: () => _open(video));
-      },
+    return CustomScrollView(
+      slivers: [VideoFeedSliver(videos: _results, onTap: _open)],
     );
   }
 
@@ -216,18 +212,21 @@ class _KidSearchScreenState extends State<KidSearchScreen> {
       );
     }
 
-    return ListView(
-      children: [
+    return CustomScrollView(
+      slivers: [
         if (channels.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Наши каналы',
-                style: TextStyle(
-                    color: AppColors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600)),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Наши каналы',
+                  style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+            ),
           ),
-          SizedBox(
+          SliverToBoxAdapter(
+              child: SizedBox(
             height: 108,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -275,19 +274,20 @@ class _KidSearchScreenState extends State<KidSearchScreen> {
                 );
               },
             ),
-          ),
+          )),
         ],
         if (fresh.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
-            child: Text('Новое',
-                style: TextStyle(
-                    color: AppColors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600)),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Text('Новое',
+                  style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+            ),
           ),
-          ...fresh.map((video) =>
-              VideoCard(video: video, onTap: () => _open(video))),
+          VideoFeedSliver(videos: fresh, onTap: _open),
         ],
       ],
     );

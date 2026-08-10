@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/video_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/constants.dart';
-import '../widgets/video_card.dart';
 import '../widgets/shorts_card.dart';
+import '../widgets/video_feed_sliver.dart';
 import 'video_player_screen.dart';
 import 'shorts_player_screen.dart';
 
@@ -90,61 +90,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// One full-width card per row reads fine on a phone but turns into a wall
-  /// of huge thumbnails on a tablet, so wide screens get a grid instead. The
-  /// column count comes from a target card width rather than a device check —
-  /// a split-screen tablet is as narrow as a phone.
   List<Widget> _buildFeed(
       BuildContext context, List<VideoItem> regular, List<VideoItem> shorts) {
-    const targetCardWidth = 380.0;
-    final width = MediaQuery.sizeOf(context).width;
-    final columns = (width / targetCardWidth).floor().clamp(1, 4);
-
-    // The Shorts shelf is full-bleed, so it sits between grids rather than
+    // The Shorts shelf is full-bleed, so it sits between feeds rather than
     // inside one. With few videos it has already been placed above.
     final headCount = regular.length > 2 ? 2 : regular.length;
     final head = regular.take(headCount).toList();
     final tail = regular.skip(headCount).toList();
 
     return [
-      _sliverFor(head, columns, width),
+      VideoFeedSliver(videos: head, onTap: _open),
       if (shorts.isNotEmpty && regular.length > 2)
         SliverToBoxAdapter(child: _buildShortsShelf(shorts)),
-      if (tail.isNotEmpty) _sliverFor(tail, columns, width),
+      if (tail.isNotEmpty) VideoFeedSliver(videos: tail, onTap: _open),
     ];
-  }
-
-  Widget _sliverFor(List<VideoItem> videos, int columns, double width) {
-    if (columns == 1) {
-      return SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) =>
-              VideoCard(video: videos[index], onTap: () => _open(videos[index])),
-          childCount: videos.length,
-        ),
-      );
-    }
-
-    // Fix the tile height explicitly: thumbnail plus the text block below it.
-    // Letting the grid guess an aspect ratio clips the title at some widths.
-    final cardWidth = width / columns;
-    final tileHeight = cardWidth * 9 / 16 + 96;
-
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          crossAxisSpacing: 12,
-          mainAxisExtent: tileHeight,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) =>
-              VideoCard(video: videos[index], onTap: () => _open(videos[index])),
-          childCount: videos.length,
-        ),
-      ),
-    );
   }
 
   List<VideoItem> _filter(List<VideoItem> videos) {
