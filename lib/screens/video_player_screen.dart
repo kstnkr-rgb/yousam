@@ -41,7 +41,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         mute: false,
         disableDragSeek: false,
         loop: false,
-        enableCaption: true,
+        // Was true, which forced subtitles on with no way to switch them off:
+        // this player exposes captions as a startup flag only, not as a
+        // control. Off matches what YouTube itself does by default.
+        enableCaption: false,
         forceHD: false,
       ),
     );
