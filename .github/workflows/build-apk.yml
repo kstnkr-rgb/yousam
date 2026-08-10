@@ -65,6 +65,16 @@ jobs:
             --dart-define=APP_VERSION="$APP_VERSION" \
             --dart-define=CHANNELS_URL=https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/channels.json
 
+      # R8 writes the exact keep rules it wanted into this file. Without it,
+      # each missing package costs a whole failed build to discover.
+      - name: Upload R8 missing rules
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-missing-rules-${{ github.run_number }}
+          path: build/app/outputs/mapping/release/missing_rules.txt
+          if-no-files-found: ignore
+
       - uses: actions/upload-artifact@v4
         with:
           name: kidtube-apk-${{ github.run_number }}
