@@ -47,9 +47,10 @@ const int kIncrementalScanLimit = 60;
 /// learn its duration — a full watch-page fetch — and that is what makes a
 /// first sync drag: 20 channels turned into ~300 of them.
 ///
-/// Temporarily lowered to 2 for testing. Raise it back towards 15 once the
-/// timing is understood.
-const int kFeedVideoLimit = 2;
+/// Fifteen is everything the feed holds — there is no way to page further
+/// back. It only applies when extraction has failed, so the cost of the
+/// per-video duration lookups is paid rarely.
+const int kFeedVideoLimit = 15;
 
 /// Below this, direct playback is not worth it and the embedded YouTube player
 /// is used instead.
