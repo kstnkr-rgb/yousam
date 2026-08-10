@@ -22,7 +22,25 @@ Future<void> main(List<String> args) async {
     exit(2);
   }
 
-  final decoded = jsonDecode(file.readAsStringSync());
+  // A missing comma is the easiest way to break this file, and the app reacts
+  // by quietly keeping the previous channel list — so say plainly what is
+  // wrong and where, rather than dumping a stack trace.
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(file.readAsStringSync());
+  } on FormatException catch (e) {
+    stderr.writeln('$path — некорректный JSON: ${e.message}');
+    if (e.offset != null) {
+      final upto = file.readAsStringSync().substring(0, e.offset!);
+      final line = '\n'.allMatches(upto).length + 1;
+      stderr.writeln('Строка $line. Чаще всего это пропущенная запятая '
+          'в конце предыдущей строки.');
+    }
+    stderr.writeln('Приложение такой файл не примет и останется на прежнем '
+        'списке каналов.');
+    exit(2);
+  }
+
   final raw = decoded is List ? decoded : (decoded as Map)['channels'] as List;
   final entries = raw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty);
 
