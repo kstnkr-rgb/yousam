@@ -59,20 +59,40 @@ jobs:
       - name: Restore signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/kidtube.p12"
-            echo "KEYSTORE_PATH=$RUNNER_TEMP/kidtube.p12" >> "$GITHUB_ENV"
-            echo "Signing with the stored release key."
-          else
+          if [ -z "$KEYSTORE_BASE64" ]; then
             echo "No KEYSTORE_BASE64 secret — falling back to the debug key."
+            exit 0
           fi
 
+          ks="$RUNNER_TEMP/kidtube.p12"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ks"
+
+          # Ask the keystore what its key is called instead of assuming.
+          # Whoever produced the file decides the alias, and the name a
+          # Windows export writes is not necessarily the one Java reads back —
+          # which is exactly how a build failed with "No key with alias".
+          alias=$(keytool -list -storetype PKCS12 -keystore "$ks" \
+                    -storepass "$KEYSTORE_PASSWORD" 2>/dev/null \
+                  | grep -m1 'PrivateKeyEntry' | cut -d, -f1 | tr -d '[:space:]')
+
+          if [ -z "$alias" ]; then
+            echo "Could not read a private key from the keystore." >&2
+            exit 1
+          fi
+
+          echo "KEYSTORE_PATH=$ks" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$alias" >> "$GITHUB_ENV"
+          echo "Signing with the stored release key, alias '$alias'."
+
       - name: Build release APK
+        # KEY_ALIAS deliberately absent: it was detected from the keystore in
+        # the previous step and lives in the job environment. Declaring it here
+        # would shadow that with an empty secret.
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         # CHANNELS_URL is derived from this repository, so a fork or rename
         # keeps working without editing lib/utils/config.dart. APP_VERSION is
         # passed in as well so the parent dashboard can show which build is
