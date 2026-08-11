@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
+import '../utils/config.dart';
 import '../utils/constants.dart';
 import 'home_screen.dart';
 import 'kid_search_screen.dart';
@@ -77,19 +78,18 @@ class _MainShellState extends State<MainShell> {
               title: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 28,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: AppColors.ytRed,
-                      borderRadius: BorderRadius.circular(6),
+                  // The app's own icon rather than a YouTube lookalike.
+                  ClipOval(
+                    child: Image.asset(
+                      'assets/icon_sam.png',
+                      width: 26,
+                      height: 26,
+                      fit: BoxFit.cover,
                     ),
-                    child: const Icon(Icons.play_arrow,
-                        color: Colors.white, size: 16),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   const Text(
-                    'KidTube',
+                    kAppName,
                     style: TextStyle(
                       color: AppColors.white,
                       fontSize: 20,
@@ -117,16 +117,13 @@ class _MainShellState extends State<MainShell> {
                           builder: (context) => const ParentLoginScreen()),
                     );
                   },
-                  child: const Padding(
-                    padding: EdgeInsets.only(right: 14),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 14),
                     child: CircleAvatar(
                       radius: 14,
-                      backgroundColor: Colors.teal,
-                      child: Text('K',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500)),
+                      backgroundColor: AppColors.ytDarkSurface,
+                      backgroundImage:
+                          const AssetImage('assets/icon_sam.png'),
                     ),
                   ),
                 ),

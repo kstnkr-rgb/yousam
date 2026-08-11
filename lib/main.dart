@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'providers/app_provider.dart';
 import 'screens/main_shell.dart';
+import 'utils/config.dart';
 import 'utils/constants.dart';
 
 void main() async {
@@ -35,18 +36,18 @@ void main() async {
   runApp(
     ChangeNotifierProvider.value(
       value: appProvider,
-      child: const KidTubeApp(),
+      child: const SamTubeApp(),
     ),
   );
 }
 
-class KidTubeApp extends StatelessWidget {
-  const KidTubeApp({super.key});
+class SamTubeApp extends StatelessWidget {
+  const SamTubeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'KidTube',
+      title: kAppName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       locale: const Locale('ru'),

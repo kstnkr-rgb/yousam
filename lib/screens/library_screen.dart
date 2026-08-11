@@ -18,16 +18,12 @@ class LibraryScreen extends StatelessWidget {
               // Profile section
               const CircleAvatar(
                 radius: 48,
-                backgroundColor: Colors.teal,
-                child: Text('K',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w500)),
+                backgroundColor: AppColors.ytDarkSurface,
+                backgroundImage: AssetImage('assets/icon_sam.png'),
               ),
               const SizedBox(height: 12),
               const Text(
-                'Ребёнок',
+                'Сам',
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 22,
@@ -36,7 +32,7 @@ class LibraryScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                '@kidtube',
+                '@samtube',
                 style: TextStyle(color: AppColors.ytGrey, fontSize: 13),
               ),
               const SizedBox(height: 24),

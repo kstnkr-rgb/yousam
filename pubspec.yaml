@@ -63,3 +63,7 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Also used at build time to generate the launcher icons, but that step
+    # does not bundle it — the in-app logo needs it inside the APK.
+    - assets/icon_sam.png

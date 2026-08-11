@@ -15,6 +15,11 @@ const String kDefaultRemoteChannelsUrl = String.fromEnvironment(
       'https://raw.githubusercontent.com/OWNER/REPO/main/channels.json',
 );
 
+/// Shown in the app bar and on the profile screen. The launcher label lives
+/// separately in AndroidManifest.xml — Android reads it before Dart runs — so
+/// the two have to be changed together.
+const String kAppName = 'SamTube';
+
 /// Build identifier, injected by CI as `1.0.<run_number>`. Shown in the parent
 /// dashboard so "which build is actually on the phone" is answerable without
 /// digging through Android settings. Local builds report "dev".

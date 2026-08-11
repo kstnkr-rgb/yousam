@@ -360,7 +360,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
               Wrap(
                 spacing: 6,
                 children: [
-                  _buildTag('#kidtube'),
+                  _buildTag('#samtube'),
                   _buildTag('#длядетей'),
                 ],
               ),
