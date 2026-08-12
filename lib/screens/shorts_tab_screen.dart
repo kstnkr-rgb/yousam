@@ -78,6 +78,22 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
     _controllers[_currentPage]?.pause();
     setState(() => _currentPage = index);
     if (widget.isActive) _controllers[index]?.play();
+    _trimControllers(index);
+  }
+
+  /// Releases players for pages that scrolled out of reach.
+  ///
+  /// Every Short is a web view, and Android only tolerates a handful at once —
+  /// after three or four swipes new ones simply stopped loading, because the
+  /// old ones were kept until the whole tab was disposed. PageView only keeps
+  /// the neighbours of the current page in the tree, so anything outside that
+  /// window has no widget left to break.
+  void _trimControllers(int center) {
+    final keep = {center - 1, center, center + 1};
+    for (final index in _controllers.keys.toList()) {
+      if (keep.contains(index)) continue;
+      _controllers.remove(index)?.dispose();
+    }
   }
 
   @override
@@ -182,6 +198,14 @@ class _ShortsPageState extends State<_ShortsPage> {
     });
   }
 
+  /// Tap anywhere to pause. The player's own controls are hidden to keep the
+  /// Shorts look, which also left it with no way to stop a video at all.
+  void _togglePlay() {
+    final controller = widget.controller;
+    controller.value.isPlaying ? controller.pause() : controller.play();
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final video = widget.video;
@@ -200,6 +224,41 @@ class _ShortsPageState extends State<_ShortsPage> {
             child: YoutubePlayer(
               controller: controller,
               showVideoProgressIndicator: false,
+            ),
+          ),
+        ),
+
+        // Tap target for play/pause. Sits below the side buttons in the stack
+        // so it never swallows their presses, and stays translucent so vertical
+        // swipes still reach the PageView.
+        Positioned.fill(
+          bottom: 70,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _togglePlay,
+            child: controller.value.isPlaying
+                ? const SizedBox.expand()
+                : const Center(
+                    child: Icon(Icons.play_arrow,
+                        size: 72, color: Color(0xCCFFFFFF)),
+                  ),
+          ),
+        ),
+
+        // A slim seek bar — the only control kept, since the rest of the
+        // player's chrome would break the full-bleed Shorts look.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 54,
+          child: ProgressBar(
+            controller: controller,
+            isExpanded: true,
+            colors: const ProgressBarColors(
+              playedColor: AppColors.ytRed,
+              handleColor: AppColors.ytRed,
+              bufferedColor: Color(0x55FFFFFF),
+              backgroundColor: Color(0x33FFFFFF),
             ),
           ),
         ),
