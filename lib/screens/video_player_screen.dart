@@ -37,6 +37,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   /// the fallback for when extraction fails, which it will from time to time.
   final NewPipeService _newPipe = NewPipeService();
   VideoStreams? _streams;
+
+  /// Streams that were extracted but judged too low-quality to prefer over the
+  /// embedded player. Kept rather than discarded: if the embedded player then
+  /// refuses the video — its owner disallows embedding, or YouTube will not
+  /// verify the embedder, the 150–153 family of errors — 360p is still far
+  /// better than a blank screen.
+  VideoStreams? _lowQualityStreams;
   bool _streamsResolved = false;
 
   bool _titleExpanded = false;
@@ -59,9 +66,32 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   @override
   void dispose() {
     _seekHintTimer?.cancel();
+    _controller?.removeListener(_onEmbeddedPlayerChanged);
     _controller?.dispose();
     _releaseOrientation();
     super.dispose();
+  }
+
+  /// Switches to direct playback when the embedded player gives up.
+  void _onEmbeddedPlayerChanged() {
+    final controller = _controller;
+    if (controller == null || !controller.value.hasError) return;
+
+    developer.log('Embedded player failed with code '
+        '${controller.value.errorCode}');
+
+    final fallback = _lowQualityStreams;
+    if (fallback == null) return; // nothing better to switch to
+
+    controller.removeListener(_onEmbeddedPlayerChanged);
+    setState(() {
+      _controller = null;
+      _streams = fallback;
+      _lowQualityStreams = null; // one way only, never bounce back
+    });
+    // Disposing a controller from inside its own notification is asking for
+    // trouble; let the frame finish first.
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
   }
 
   /// Stop dictating an orientation and put the system bars back.
@@ -542,9 +572,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
     setState(() {
       _streams = usable;
+      // Held in reserve: the embedded player refuses some videos outright, and
+      // then even a 360p stream is worth having.
+      _lowQualityStreams = usable == null ? streams : null;
       _streamsResolved = true;
+
       if (usable == null) {
-        _controller = YoutubePlayerController(
+        final controller = YoutubePlayerController(
           initialVideoId: widget.video.youtubeVideoId,
           flags: const YoutubePlayerFlags(
             autoPlay: true,
@@ -557,7 +591,8 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             enableCaption: false,
             forceHD: false,
           ),
-        );
+        )..addListener(_onEmbeddedPlayerChanged);
+        _controller = controller;
       }
     });
   }
