@@ -50,14 +50,12 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "ic_launcher"
   ios: false
-  # Legacy icon: the artwork edge to edge, since old launchers draw it as-is.
-  image_path: "assets/icon_sam.png"
+  # Both layers use the cropped version rather than the raw artwork. The
+  # artwork occupies only 68% of its own canvas and sits off-centre, so drawing
+  # it as-is left the face small and lost in white space. icon_sam_adaptive is
+  # that same artwork cropped to the head, centred, and scaled to fill.
+  image_path: "assets/icon_sam_adaptive.png"
   min_sdk_android: 21
-  # Adaptive icon: the launcher masks the foreground to its own shape and can
-  # cut away the outer third, so this layer is the same artwork inset to 70% of
-  # the canvas — otherwise the top of the hair would be shaved off. The
-  # background matches the artwork's own near-white, so the square edge of the
-  # inset image disappears into it.
   adaptive_icon_background: "#FAF9FA"
   adaptive_icon_foreground: "assets/icon_sam_adaptive.png"
 
