@@ -4,7 +4,9 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/app_provider.dart';
 import '../models/video_item.dart';
+import '../services/newpipe_service.dart';
 import '../utils/constants.dart';
+import '../widgets/shorts_stream_player.dart';
 
 class ShortsTabScreen extends StatefulWidget {
   /// Whether this is the tab currently on screen. The shell keeps every tab
@@ -21,7 +23,10 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   late PageController _pageController;
   int _currentPage = 0;
-  final Map<int, YoutubePlayerController> _controllers = {};
+
+  /// Players used to live in a map here and leaked until the tab closed. They
+  /// now belong to the page widget, so scrolling one out of view releases it.
+  bool _appResumed = true;
 
   @override
   bool get wantKeepAlive => true;
@@ -33,75 +38,22 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
     WidgetsBinding.instance.addObserver(this);
   }
 
-  @override
-  void didUpdateWidget(covariant ShortsTabScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.isActive == widget.isActive) return;
-    if (widget.isActive) {
-      _controllers[_currentPage]?.play();
-    } else {
-      _pauseAll();
-    }
-  }
-
   /// Switching away from the app must not leave a Short talking in the
   /// background.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _pauseAll();
-  }
-
-  void _pauseAll() {
-    for (final controller in _controllers.values) {
-      controller.pause();
-    }
-  }
-
-  YoutubePlayerController _getController(VideoItem video, int index) {
-    if (!_controllers.containsKey(index)) {
-      _controllers[index] = YoutubePlayerController(
-        initialVideoId: video.youtubeVideoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: false,
-          mute: false,
-          loop: true,
-          hideControls: true,
-          showLiveFullscreenButton: false,
-          controlsVisibleAtStart: false,
-        ),
-      );
-    }
-    return _controllers[index]!;
+    final resumed = state == AppLifecycleState.resumed;
+    if (resumed == _appResumed) return;
+    setState(() => _appResumed = resumed);
   }
 
   void _onPageChanged(int index) {
-    _controllers[_currentPage]?.pause();
     setState(() => _currentPage = index);
-    if (widget.isActive) _controllers[index]?.play();
-    _trimControllers(index);
-  }
-
-  /// Releases players for pages that scrolled out of reach.
-  ///
-  /// Every Short is a web view, and Android only tolerates a handful at once —
-  /// after three or four swipes new ones simply stopped loading, because the
-  /// old ones were kept until the whole tab was disposed. PageView only keeps
-  /// the neighbours of the current page in the tree, so anything outside that
-  /// window has no widget left to break.
-  void _trimControllers(int center) {
-    final keep = {center - 1, center, center + 1};
-    for (final index in _controllers.keys.toList()) {
-      if (keep.contains(index)) continue;
-      _controllers.remove(index)?.dispose();
-    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    for (final c in _controllers.values) {
-      c.dispose();
-    }
     _pageController.dispose();
     super.dispose();
   }
@@ -146,9 +98,10 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
             itemBuilder: (context, index) {
               final video = provider.shorts[index];
               return _ShortsPage(
+                key: ValueKey(video.youtubeVideoId),
                 video: video,
-                controller: _getController(video, index),
-                isActive: index == _currentPage && widget.isActive,
+                isActive:
+                    index == _currentPage && widget.isActive && _appResumed,
               );
             },
           ),
@@ -160,12 +113,11 @@ class _ShortsTabScreenState extends State<ShortsTabScreen>
 
 class _ShortsPage extends StatefulWidget {
   final VideoItem video;
-  final YoutubePlayerController controller;
   final bool isActive;
 
   const _ShortsPage({
+    super.key,
     required this.video,
-    required this.controller,
     required this.isActive,
   });
 
@@ -174,50 +126,102 @@ class _ShortsPage extends StatefulWidget {
 }
 
 class _ShortsPageState extends State<_ShortsPage> {
+  final NewPipeService _newPipe = NewPipeService();
+
+  VideoStreams? _streams;
+  bool _resolved = false;
+
+  /// Only created when stream extraction fails. It brings ads and is the one
+  /// that hits YouTube's 150–153 embedding refusals, so it is a last resort.
+  YoutubePlayerController? _embedded;
+
   @override
   void initState() {
     super.initState();
+    _loadStreams();
+  }
+
+  Future<void> _loadStreams() async {
+    final streams = await _newPipe.videoStreams(widget.video.youtubeVideoId);
+    if (!mounted) return;
+
+    final usable =
+        (streams != null && streams.playable.isNotEmpty) ? streams : null;
+
+    setState(() {
+      _streams = usable;
+      _resolved = true;
+      if (usable == null) {
+        _embedded = YoutubePlayerController(
+          initialVideoId: widget.video.youtubeVideoId,
+          flags: const YoutubePlayerFlags(
+            autoPlay: false,
+            mute: false,
+            loop: true,
+            hideControls: true,
+            showLiveFullscreenButton: false,
+            controlsVisibleAtStart: false,
+          ),
+        );
+      }
+    });
     _applyPlayback();
   }
 
-  /// Playback is driven by changes in [isActive] only.
-  ///
-  /// This used to live in build(), so every rebuild resumed the video — and
-  /// rebuilds are frequent while channels sync. That is why pausing a Short
-  /// never stuck: it restarted on the next frame.
   @override
   void didUpdateWidget(covariant _ShortsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActive != widget.isActive) _applyPlayback();
   }
 
+  /// Only the embedded player needs driving from here; the stream player
+  /// follows its own isActive flag.
   void _applyPlayback() {
+    final embedded = _embedded;
+    if (embedded == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      widget.isActive ? widget.controller.play() : widget.controller.pause();
+      widget.isActive ? embedded.play() : embedded.pause();
     });
   }
 
-  /// Tap anywhere to pause. The player's own controls are hidden to keep the
-  /// Shorts look, which also left it with no way to stop a video at all.
+  @override
+  void dispose() {
+    _embedded?.dispose();
+    super.dispose();
+  }
+
   void _togglePlay() {
-    final controller = widget.controller;
+    final controller = _embedded;
+    if (controller == null) return;
     controller.value.isPlaying ? controller.pause() : controller.play();
     setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final video = widget.video;
-    final controller = widget.controller;
+  Widget _buildPlayer() {
+    if (!_resolved) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.ytRed),
+      );
+    }
+
+    final streams = _streams;
+    if (streams != null) {
+      return ShortsStreamPlayer(streams: streams, isActive: widget.isActive);
+    }
+
+    return _buildEmbedded();
+  }
+
+  /// The embedded player plus the tap-to-pause and scrub controls it lacks.
+  /// The stream player builds its own equivalents.
+  Widget _buildEmbedded() {
+    final controller = _embedded;
+    if (controller == null) return const SizedBox.expand();
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Black background
-        Container(color: Colors.black),
-
-        // Video player centered
         Center(
           child: AspectRatio(
             aspectRatio: 9 / 16,
@@ -227,10 +231,6 @@ class _ShortsPageState extends State<_ShortsPage> {
             ),
           ),
         ),
-
-        // Tap target for play/pause. Sits below the side buttons in the stack
-        // so it never swallows their presses, and stays translucent so vertical
-        // swipes still reach the PageView.
         Positioned.fill(
           bottom: 70,
           child: GestureDetector(
@@ -244,9 +244,6 @@ class _ShortsPageState extends State<_ShortsPage> {
                   ),
           ),
         ),
-
-        // A slim seek bar — the only control kept, since the rest of the
-        // player's chrome would break the full-bleed Shorts look.
         Positioned(
           left: 0,
           right: 0,
@@ -262,6 +259,21 @@ class _ShortsPageState extends State<_ShortsPage> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final video = widget.video;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Black background
+        Container(color: Colors.black),
+
+        _buildPlayer(),
 
         // Right side action buttons (YouTube Shorts style)
         Positioned(
