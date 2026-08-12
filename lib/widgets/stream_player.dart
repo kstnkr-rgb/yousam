@@ -34,10 +34,12 @@ class _StreamPlayerState extends State<StreamPlayer> {
   void initState() {
     super.initState();
     final options = widget.streams.playable;
-    // Start at 720p or the closest below it: high enough to look sharp on a
-    // tablet, low enough not to stall on a home connection.
+    // Best rendition up to roughly 1080p. The ceiling is expressed in pixel
+    // height rather than a quality label because a vertical video reports its
+    // long side there: capping at 720 quietly dropped such videos to a much
+    // lower rendition than intended.
     _current = options.firstWhere(
-      (o) => o.height <= 720,
+      (o) => o.height <= 1280,
       orElse: () => options.last,
     );
     _open(_current!, autoplay: true);

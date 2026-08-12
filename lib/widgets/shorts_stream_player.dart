@@ -42,11 +42,14 @@ class _ShortsStreamPlayerState extends State<ShortsStreamPlayer> {
     final options = widget.streams.playable;
     if (options.isEmpty) return;
 
-    // Shorts are small and watched briefly; the lowest rendition that still
-    // looks sharp on a phone starts fastest and is least likely to stall.
-    final option = options.lastWhere(
-      (o) => o.height >= 480,
-      orElse: () => options.first,
+    // Best available, give or take a ceiling against 4K. This used to take the
+    // *lowest* rendition above 480 to start faster, which was the wrong call:
+    // a Short fills the whole screen, so it shows every missing pixel. The
+    // threshold was doubly wrong for vertical video, where the height figure
+    // refers to the long side and almost everything cleared it.
+    final option = options.firstWhere(
+      (o) => o.height <= 1920,
+      orElse: () => options.last,
     );
 
     await _player.open(Media(option.url), play: false);
