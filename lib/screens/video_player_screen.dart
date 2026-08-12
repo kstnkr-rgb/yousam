@@ -208,12 +208,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     if (streams != null) {
       return AspectRatio(
         aspectRatio: 16 / 9,
-        child: StreamPlayer(
-          key: _playerKey,
-          streams: streams,
-          isFullscreen: _isFullscreen,
-          onToggleFullscreen: _toggleFullscreen,
-        ),
+        child: StreamPlayer(key: _playerKey, streams: streams),
       );
     }
 

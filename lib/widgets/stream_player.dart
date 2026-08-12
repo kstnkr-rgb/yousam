@@ -17,15 +17,8 @@ import '../utils/constants.dart';
 /// keeps in sync.
 class StreamPlayer extends StatefulWidget {
   final VideoStreams streams;
-  final VoidCallback? onToggleFullscreen;
-  final bool isFullscreen;
 
-  const StreamPlayer({
-    super.key,
-    required this.streams,
-    this.onToggleFullscreen,
-    this.isFullscreen = false,
-  });
+  const StreamPlayer({super.key, required this.streams});
 
   @override
   State<StreamPlayer> createState() => _StreamPlayerState();
@@ -120,33 +113,23 @@ class _StreamPlayerState extends State<StreamPlayer> {
     return Video(
       controller: _controller,
       fit: BoxFit.contain,
+      // Only the quality button is ours. Fullscreen belongs to the player's
+      // own controls: it opens as a separate screen, so the back gesture
+      // leaves it without any handling on our side. A second button of our own
+      // sat in the opposite corner doing the same thing by a different route.
       controls: (state) => Stack(
         children: [
           AdaptiveVideoControls(state),
           Positioned(
             top: 4,
             right: 4,
-            child: Row(
-              children: [
-                TextButton(
-                  onPressed: _pickQuality,
-                  child: Text(
-                    _current?.label ?? 'авто',
-                    style: const TextStyle(
-                        color: AppColors.white, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                if (widget.onToggleFullscreen != null)
-                  IconButton(
-                    icon: Icon(
-                      widget.isFullscreen
-                          ? Icons.fullscreen_exit
-                          : Icons.fullscreen,
-                      color: AppColors.white,
-                    ),
-                    onPressed: widget.onToggleFullscreen,
-                  ),
-              ],
+            child: TextButton(
+              onPressed: _pickQuality,
+              child: Text(
+                _current?.label ?? 'авто',
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],
